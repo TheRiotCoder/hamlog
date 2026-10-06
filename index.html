@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HamLog – offline QSO logger</title>
+  <meta name="description" content="Offline ham radio contact logger. Exports ADIF for QRZ.com logbook import.">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#1e3a8a" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="HamLog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icons/icon-192.png" alt="" width="28" height="28">
+      <span>HamLog</span>
+    </div>
+    <div class="topbar-right">
+      <span id="stationBadge" class="pill" hidden></span>
+      <span id="offlineBadge" class="pill warn" hidden>Offline</span>
+      <button id="btnInstall" class="btn small" type="button" hidden>Install</button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" data-tab="log" class="tab-btn"><span class="ti" aria-hidden="true">✚</span><span>Log</span></button>
+    <button type="button" data-tab="list" class="tab-btn"><span class="ti" aria-hidden="true">☰</span><span>Logbook</span><span id="countBadge" class="count"></span></button>
+    <button type="button" data-tab="export" class="tab-btn"><span class="ti" aria-hidden="true">⇪</span><span>QRZ</span><span id="newBadge" class="count accent" hidden></span></button>
+    <button type="button" data-tab="settings" class="tab-btn"><span class="ti" aria-hidden="true">⚙</span><span>Settings</span></button>
+  </nav>
+
+  <div id="storageError" class="banner error" hidden></div>
+
+  <main>
+    <!-- ================= LOG ================= -->
+    <section id="tab-log" class="tab" aria-labelledby="formTitle">
+      <form id="qsoForm" class="card" autocomplete="off" novalidate>
+        <div class="card-head">
+          <h2 id="formTitle">New QSO</h2>
+          <span id="editBadge" class="pill" hidden>Editing</span>
+        </div>
+
+        <div id="formErrors" class="banner error" role="alert" hidden></div>
+
+        <label class="field big">
+          <span class="lbl">Callsign</span>
+          <input id="f-call" name="call" type="text" required maxlength="20"
+                 autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done"
+                 placeholder="W1ABC" aria-describedby="callInfo">
+        </label>
+        <div id="callInfo" class="callinfo" aria-live="polite"></div>
+
+        <div class="grid g-dt">
+          <label class="field">
+            <span class="lbl">Date (UTC)</span>
+            <input id="f-date" name="date" type="date" required>
+          </label>
+          <label class="field">
+            <span class="lbl">Time (UTC) <span id="timeMode" class="tmode"></span></span>
+            <input id="f-time" name="time" type="text" inputmode="numeric" placeholder="HH:MM:SS" maxlength="8" required spellcheck="false">
+          </label>
+          <button id="btnNow" type="button" class="btn now">Now</button>
+        </div>
+
+        <div class="grid g3">
+          <label class="field">
+            <span class="lbl">Band</span>
+            <select id="f-band" name="band"></select>
+          </label>
+          <label class="field">
+            <span class="lbl">Freq (MHz)</span>
+            <input id="f-freq" name="freq" type="text" inputmode="decimal" placeholder="14.074" maxlength="14" aria-describedby="freqHint">
+          </label>
+          <label class="field">
+            <span class="lbl">Mode</span>
+            <select id="f-mode" name="mode"></select>
+          </label>
+        </div>
+        <div id="freqHint" class="hint small"></div>
+
+        <div class="grid g2">
+          <label class="field">
+            <span class="lbl">RST sent</span>
+            <input id="f-rst_sent" name="rst_sent" type="text" inputmode="text" maxlength="8" autocapitalize="characters">
+          </label>
+          <label class="field">
+            <span class="lbl">RST rcvd</span>
+            <input id="f-rst_rcvd" name="rst_rcvd" type="text" inputmode="text" maxlength="8" autocapitalize="characters">
+          </label>
+        </div>
+
+        <div class="grid g2">
+          <label class="field">
+            <span class="lbl">Name</span>
+            <input id="f-name" name="name" type="text" maxlength="60" autocapitalize="words">
+          </label>
+          <label class="field">
+            <span class="lbl">QTH</span>
+            <input id="f-qth" name="qth" type="text" maxlength="80" autocapitalize="words">
+          </label>
+        </div>
+
+        <div class="grid g3">
+          <label class="field">
+            <span class="lbl">State</span>
+            <input id="f-state" name="state" type="text" maxlength="6" autocapitalize="characters" placeholder="TX">
+          </label>
+          <label class="field">
+            <span class="lbl">Country</span>
+            <input id="f-country" name="country" type="text" maxlength="60" autocapitalize="words">
+          </label>
+          <label class="field">
+            <span class="lbl">Grid</span>
+            <input id="f-gridsquare" name="gridsquare" type="text" maxlength="8" autocapitalize="characters" spellcheck="false" placeholder="EM10">
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="lbl">Comments / notes</span>
+          <input id="f-comment" name="comment" type="text" maxlength="250">
+        </label>
+
+        <details id="stationDetails" class="station-details">
+          <summary>My station for this QSO <span id="stationSummary" class="muted"></span></summary>
+          <div class="grid g2">
+            <label class="field"><span class="lbl">Station callsign</span>
+              <input id="f-station_callsign" type="text" maxlength="20" autocapitalize="characters" spellcheck="false"></label>
+            <label class="field"><span class="lbl">Operator</span>
+              <input id="f-operator" type="text" maxlength="20" autocapitalize="characters" spellcheck="false"></label>
+            <label class="field"><span class="lbl">My grid</span>
+              <input id="f-my_gridsquare" type="text" maxlength="8" autocapitalize="characters" spellcheck="false"></label>
+            <label class="field"><span class="lbl">Power (W)</span>
+              <input id="f-tx_pwr" type="text" inputmode="decimal" maxlength="8"></label>
+          </div>
+          <p class="hint small">Defaults come from Settings and are saved with each QSO.</p>
+        </details>
+
+        <label id="uploadedRow" class="check" hidden>
+          <input id="f-uploaded" type="checkbox"> <span>Already uploaded to QRZ</span>
+        </label>
+
+        <div class="actions">
+          <button id="btnSave" type="submit" class="btn primary big">Save QSO</button>
+          <button id="btnClear" type="button" class="btn">Clear</button>
+          <button id="btnCancelEdit" type="button" class="btn" hidden>Cancel</button>
+          <button id="btnDeleteEdit" type="button" class="btn danger" hidden>Delete</button>
+        </div>
+        <p class="hint small kbd-hint">Enter saves · Esc clears · band/freq/mode are remembered</p>
+      </form>
+
+      <div class="card">
+        <div class="card-head"><h2>Recent</h2><button type="button" class="btn small link" data-goto="list">All QSOs →</button></div>
+        <ul id="recentList" class="qso-list compact"></ul>
+      </div>
+    </section>
+
+    <!-- ================= LOGBOOK ================= -->
+    <section id="tab-list" class="tab" hidden>
+      <div class="card">
+        <div class="filters">
+          <input id="search" type="search" placeholder="Search call, name, QTH, grid, notes…" aria-label="Search log" autocapitalize="off" spellcheck="false">
+          <div class="grid g3">
+            <select id="filterBand" aria-label="Filter by band"></select>
+            <select id="filterMode" aria-label="Filter by mode"></select>
+            <select id="filterStatus" aria-label="Filter by QRZ status">
+              <option value="">Any status</option>
+              <option value="new">Not uploaded</option>
+              <option value="up">Uploaded to QRZ</option>
+              <option value="dupe">Dupes only</option>
+            </select>
+          </div>
+        </div>
+        <p id="listCount" class="muted small"></p>
+        <ul id="qsoList" class="qso-list"></ul>
+        <button id="btnMore" type="button" class="btn block" hidden>Show more</button>
+        <p id="emptyList" class="empty" hidden>No QSOs yet. Log your first contact on the <a href="#log">Log</a> tab.</p>
+      </div>
+    </section>
+
+    <!-- ================= QRZ / EXPORT ================= -->
+    <section id="tab-export" class="tab" hidden>
+      <div class="card">
+        <h2>Upload to QRZ.com</h2>
+        <p class="lead"><strong id="newCount">0</strong> QSO<span id="newPlural">s</span> not yet uploaded.</p>
+        <div id="noCallWarn" class="banner warn" hidden>
+          Set <b>My callsign</b> in <a href="#settings">Settings</a> first. It is exported as STATION_CALLSIGN and should match your QRZ logbook's callsign.
+        </div>
+        <ol class="steps">
+          <li>
+            <b>Save the ADIF file</b> with your new QSOs.
+            <div class="actions">
+              <button id="btnShareNew" type="button" class="btn primary">Share / save new (<span class="nNew">0</span>)</button>
+              <button id="btnDownloadNew" type="button" class="btn">Download .adi</button>
+            </div>
+            <p class="hint small">On iPhone choose <b>Save to Files</b>; on Android it goes to <b>Downloads</b> (or pick Drive / Files in the share sheet).
+              <button id="btnExportAllQrz" type="button" class="btn small link">Export all QSOs instead</button></p>
+          </li>
+          <li>
+            <b>Open your QRZ Logbook</b> and sign in (a free QRZ account works).
+            <div class="actions">
+              <a class="btn" href="https://logbook.qrz.com/" target="_blank" rel="noopener noreferrer">Open logbook.qrz.com ↗</a>
+            </div>
+          </li>
+          <li>
+            <b>Import the file:</b> in your QRZ Logbook open <b>Settings</b> and click <b>Import</b> under
+            <b>“ADIF Import/Export”</b> (or use the <b>Import/Export Tools</b> button at the top right → <b>Import from ADI File</b>).
+            Tap <b>Choose File</b>, pick the <code>.adi</code> file you saved, then <b>Import ADI File</b>.
+            QRZ processes imports in the background – give it a minute, then refresh your logbook.
+          </li>
+          <li>
+            <b>Confirm:</b> once the QSOs show up on QRZ, mark them as uploaded so the next export only contains new ones.
+            <div class="actions">
+              <button id="btnMarkUploaded" type="button" class="btn primary" disabled>Mark as uploaded</button>
+              <button id="btnDiscardPending" type="button" class="btn small link" hidden>Forget this export</button>
+            </div>
+            <p id="pendingInfo" class="hint small"></p>
+          </li>
+        </ol>
+        <p id="lastUploadInfo" class="muted small"></p>
+      </div>
+
+      <div class="card">
+        <h2>Upload status tools</h2>
+        <p class="hint">Use these if HamLog and QRZ got out of sync.</p>
+        <div class="actions">
+          <button id="btnMarkAllUp" type="button" class="btn">Mark ALL as uploaded</button>
+          <button id="btnMarkAllNew" type="button" class="btn">Mark ALL as not uploaded</button>
+        </div>
+        <p class="hint small">QRZ treats an imported QSO with the same call, band and mode within ±30 minutes as a duplicate: it replaces the existing record (confirmed records are left alone), so re-uploading does not create double entries.</p>
+      </div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section id="tab-settings" class="tab" hidden>
+      <form id="settingsForm" class="card" autocomplete="off" novalidate>
+        <h2>My station</h2>
+        <div class="grid g2">
+          <label class="field"><span class="lbl">My callsign (STATION_CALLSIGN)</span>
+            <input id="s-my_call" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" placeholder="K5ABC"></label>
+          <label class="field"><span class="lbl">My grid (MY_GRIDSQUARE)</span>
+            <input id="s-my_grid" type="text" maxlength="8" autocapitalize="characters" spellcheck="false" placeholder="EM20"></label>
+          <label class="field"><span class="lbl">Operator (OPERATOR, optional)</span>
+            <input id="s-operator" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" placeholder="if different"></label>
+          <label class="field"><span class="lbl">Power, watts (TX_PWR)</span>
+            <input id="s-tx_pwr" type="text" inputmode="decimal" maxlength="8" placeholder="100"></label>
+        </div>
+        <label class="check"><input id="s-autofill_prev" type="checkbox" checked> <span>Pre-fill name/QTH/grid from earlier QSOs with the same call</span></label>
+        <label class="field narrow"><span class="lbl">Theme</span>
+          <select id="s-theme"><option value="auto">Auto (system)</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+        <div id="settingsErrors" class="banner error" hidden></div>
+        <div class="actions"><button type="submit" class="btn primary">Save settings</button></div>
+        <p class="hint small">These are copied onto each new QSO when you log it.</p>
+      </form>
+
+      <div class="card">
+        <h2>Import ADIF</h2>
+        <p class="hint">Merge QSOs from another logger (.adi / .adif), or a QRZ logbook export if you have a QRZ subscription. Exact repeats (same call, date, time to the minute, band, mode) are skipped.</p>
+        <label class="check"><input id="importMarkUploaded" type="checkbox"> <span>These QSOs are already on QRZ (mark as uploaded)</span></label>
+        <div class="actions">
+          <label class="btn file-btn">Choose ADIF file…<input id="importAdif" type="file" class="vh"></label>
+        </div>
+        <p id="importResult" class="hint small" aria-live="polite"></p>
+      </div>
+
+      <div class="card">
+        <h2>Backup &amp; restore</h2>
+        <p class="hint">Your log lives only in this browser on this device. Back it up regularly.</p>
+        <div class="actions">
+          <button id="btnBackupJson" type="button" class="btn primary">Save JSON backup</button>
+          <button id="btnExportAllAdif" type="button" class="btn">Export all as ADIF</button>
+        </div>
+        <div class="actions">
+          <label class="btn file-btn">Restore JSON (merge)…<input id="restoreMerge" type="file" accept=".json,application/json" class="vh"></label>
+          <label class="btn file-btn danger-outline">Restore JSON (replace all)…<input id="restoreReplace" type="file" accept=".json,application/json" class="vh"></label>
+        </div>
+        <p id="restoreResult" class="hint small" aria-live="polite"></p>
+      </div>
+
+      <div class="card">
+        <h2>App</h2>
+        <p id="installHint" class="hint" hidden></p>
+        <p id="storageInfo" class="hint small"></p>
+        <p class="hint small">HamLog <span id="appVersion"></span> · works offline · no account, no tracking.</p>
+        <div class="actions">
+          <button id="btnPersist" type="button" class="btn">Ask browser to keep data</button>
+          <button id="btnDeleteAll" type="button" class="btn danger">Delete all QSOs…</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="updateBanner" class="update-banner" hidden>
+    <span>A new version of HamLog is ready.</span>
+    <button id="btnUpdate" type="button" class="btn small primary">Reload</button>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/hamdata.js"></script>
+  <script src="js/adif.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
