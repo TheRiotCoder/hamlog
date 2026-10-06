@@ -1,5 +1,15 @@
 # HamLog – offline ham radio QSO logger (PWA)
 
+**Live app: [unique-hummingbird-2241c8.netlify.app](https://unique-hummingbird-2241c8.netlify.app/)**
+
+Install it:
+- **iPhone/iPad:** open the link in Safari, tap Share, then **Add to Home Screen**.
+- **Android:** open the link in Chrome, tap the ⋮ menu, then **Install app** (or **Add to Home screen**).
+- **Windows/Mac/Linux:** open the link in Chrome or Edge and click the install icon in the address bar.
+
+Open it once while online; after that it works offline.
+
+
 A small, dependency-free Progressive Web App for logging amateur radio contacts.
 Works offline, installs on Android, iPhone/iPad, Windows, macOS and Linux, stores
 everything locally in your browser (IndexedDB), and exports **ADIF 3.1.4 (.adi)**
