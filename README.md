@@ -1,6 +1,6 @@
 # HamLog – offline ham radio QSO logger (PWA)
 
-**Live app: [theriotcoder.github.io/hamlog](https://theriotcoder.github.io/hamlog/)** (also on [Netlify](https://unique-hummingbird-2241c8.netlify.app/))
+**Live app: [HamLog on Netlify](https://unique-hummingbird-2241c8.netlify.app/#log)** (backup: [GitHub Pages](https://theriotcoder.github.io/hamlog/))
 
 Install it:
 - **iPhone/iPad:** open the link in Safari, tap Share, then **Add to Home Screen**.
