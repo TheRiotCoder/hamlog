@@ -17,8 +17,13 @@
     MODE: 'mode', SUBMODE: 'submode', RST_SENT: 'rst_sent', RST_RCVD: 'rst_rcvd',
     NAME: 'name', QTH: 'qth', STATE: 'state', COUNTRY: 'country', GRIDSQUARE: 'gridsquare',
     COMMENT: 'comment', STATION_CALLSIGN: 'station_callsign', OPERATOR: 'operator',
-    MY_GRIDSQUARE: 'my_gridsquare', TX_PWR: 'tx_pwr'
+    MY_GRIDSQUARE: 'my_gridsquare', TX_PWR: 'tx_pwr',
+    // contest + POTA/SOTA (v1.1)
+    CONTEST_ID: 'contest_id', SRX: 'srx', STX: 'stx', SRX_STRING: 'srx_string', STX_STRING: 'stx_string',
+    MY_SIG: 'my_sig', MY_SIG_INFO: 'my_sig_info', SIG: 'sig', SIG_INFO: 'sig_info',
+    MY_SOTA_REF: 'my_sota_ref', SOTA_REF: 'sota_ref'
   };
+  const V11_FIELDS = ['CONTEST_ID', 'SRX', 'STX', 'SRX_STRING', 'STX_STRING', 'MY_SIG', 'MY_SIG_INFO', 'SIG', 'SIG_INFO', 'MY_SOTA_REF', 'SOTA_REF'];
   const FIELD_ORDER = Object.keys(FIELD_MAP);
   const MULTILINE = { NOTES: 1, ADDRESS: 1, QSLMSG_RCVD: 0 };
   // Fields that are interpreted (not kept as "extra") on import
@@ -101,6 +106,12 @@
       MY_GRIDSQUARE: H.normalizeGrid(q.my_gridsquare || defaults.my_gridsquare || ''),
       TX_PWR: cleanNumber(q.tx_pwr || defaults.tx_pwr || '')
     };
+    const ex = q.extra || {};
+    for (const k of V11_FIELDS) {
+      const v = q[FIELD_MAP[k]] != null && String(q[FIELD_MAP[k]]) !== '' ? q[FIELD_MAP[k]] : (ex[k] != null ? ex[k] : '');
+      vals[k] = /^(SRX|STX)$/.test(k) ? String(v).replace(/\D/g, '') :
+        /SIG$|SIG_INFO$|SOTA_REF$|CONTEST_ID$/.test(k) ? String(v).trim().toUpperCase() : v;
+    }
     const out = [];
     for (const k of FIELD_ORDER) {
       const v = vals[k] == null ? '' : String(vals[k]).trim();

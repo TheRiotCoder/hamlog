@@ -203,7 +203,8 @@
   }
   /** Key used to skip exact repeats when importing/merging (minute resolution). */
   function mergeKey(q) {
-    return [normalizeCall(q.call), q.qso_date, String(q.time_on || '').slice(0, 4), String(q.band || '').toLowerCase(), dupeMode(q)].join('|');
+    return [normalizeCall(q.call), q.qso_date, String(q.time_on || '').slice(0, 4), String(q.band || '').toLowerCase(), dupeMode(q)].join('|') +
+      (q.sig_info ? '|' + String(q.sig_info).toUpperCase() : '');
   }
   function sortKey(q) { return String(q.qso_date || '') + String(q.time_on || '').padEnd(6, '0'); }
 

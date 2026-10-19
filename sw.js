@@ -1,11 +1,13 @@
 /* HamLog service worker – offline app shell (cache-first, versioned). Bump VERSION on every release. */
-const VERSION = 'hamlog-v1.0.0';
+const VERSION = 'hamlog-v1.1.0';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
   './js/hamdata.js',
   './js/adif.js',
+  './js/field.js',
+  './js/ops.js',
   './js/db.js',
   './js/app.js',
   './manifest.webmanifest',

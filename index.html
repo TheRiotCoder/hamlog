@@ -2,6 +2,8 @@
 <html lang="en" data-theme="auto">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self' https://api.pota.app https://api2.sota.org.uk; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HamLog – offline QSO logger</title>
   <meta name="description" content="Offline ham radio contact logger. Exports ADIF for QRZ.com logbook import.">
@@ -32,6 +34,7 @@
 
   <nav class="tabs" aria-label="Sections">
     <button type="button" data-tab="log" class="tab-btn"><span class="ti" aria-hidden="true">✚</span><span>Log</span></button>
+    <button type="button" data-tab="ops" class="tab-btn"><span class="ti" aria-hidden="true">⚑</span><span>Field</span></button>
     <button type="button" data-tab="list" class="tab-btn"><span class="ti" aria-hidden="true">☰</span><span>Logbook</span><span id="countBadge" class="count"></span></button>
     <button type="button" data-tab="export" class="tab-btn"><span class="ti" aria-hidden="true">⇪</span><span>QRZ</span><span id="newBadge" class="count accent" hidden></span></button>
     <button type="button" data-tab="settings" class="tab-btn"><span class="ti" aria-hidden="true">⚙</span><span>Settings</span></button>
@@ -159,6 +162,105 @@
       <div class="card">
         <div class="card-head"><h2>Recent</h2><button type="button" class="btn small link" data-goto="list">All QSOs →</button></div>
         <ul id="recentList" class="qso-list compact"></ul>
+      </div>
+    </section>
+
+
+    <!-- ================= FIELD OPS: CONTEST / POTA / SOTA ================= -->
+    <section id="tab-ops" class="tab" hidden>
+      <div class="card" id="o-setup">
+        <div class="card-head"><h2>Field ops</h2><span id="o-activePill" class="pill ok" hidden></span></div>
+        <label class="field"><span class="lbl">Session type</span>
+          <select id="o-type">
+            <option value="CONTEST">Contest</option>
+            <option value="POTA">POTA activation (I'm in a park)</option>
+            <option value="SOTA">SOTA activation (I'm on a summit)</option>
+            <option value="HUNT">Hunter / chaser (working parks &amp; summits from anywhere)</option>
+          </select></label>
+        <div id="o-contestBox">
+          <label class="field"><span class="lbl">Contest</span><select id="o-contest"></select></label>
+          <label class="field" id="o-cidRow" hidden><span class="lbl">Contest ID for ADIF / Cabrillo (e.g. LA-QSO-PARTY)</span>
+            <input id="o-cid" type="text" maxlength="32" autocapitalize="characters" spellcheck="false" placeholder="LA-QSO-PARTY"></label>
+          <div class="grid g2">
+            <label class="field"><span class="lbl">My exchange (sent)</span>
+              <input id="o-exch" type="text" maxlength="40" autocapitalize="characters" spellcheck="false"></label>
+            <label class="field"><span class="lbl">My section / location (Cabrillo)</span>
+              <input id="o-loc" type="text" maxlength="6" autocapitalize="characters" spellcheck="false" placeholder="LA"></label>
+            <label class="field"><span class="lbl">Power category</span>
+              <select id="o-power"><option value="LOW">Low</option><option value="HIGH">High</option><option value="QRP">QRP</option></select></label>
+            <label class="field"><span class="lbl">Next serial #</span>
+              <input id="o-serial" type="text" inputmode="numeric" maxlength="5" value="1"></label>
+          </div>
+          <p id="o-contestHint" class="hint small"></p>
+        </div>
+        <div id="o-actBox" hidden>
+          <label class="field"><span class="lbl" id="o-myrefLbl">My park</span>
+            <input id="o-myref" type="text" maxlength="60" autocapitalize="characters" spellcheck="false" placeholder="US-0001"></label>
+          <div class="actions"><button id="o-lookup" type="button" class="btn">Look up name</button></div>
+          <p id="o-refInfo" class="hint small" aria-live="polite"></p>
+        </div>
+        <div id="o-setupErr" class="banner error" role="alert" hidden></div>
+        <div class="actions">
+          <button id="o-start" type="button" class="btn primary">Start session</button>
+          <button id="o-update" type="button" class="btn" hidden>Update session</button>
+          <button id="o-end" type="button" class="btn" hidden>End session</button>
+        </div>
+      </div>
+
+      <form id="o-form" class="card" autocomplete="off" novalidate hidden>
+        <div class="card-head"><h2 id="o-formTitle">Log</h2><span id="o-utc" class="pill"></span></div>
+        <div class="grid g3">
+          <label class="field"><span class="lbl">Band</span><select id="o-band"></select></label>
+          <label class="field"><span class="lbl">Mode</span><select id="o-mode"></select></label>
+          <label class="field"><span class="lbl">Freq (MHz)</span>
+            <input id="o-freq" type="text" inputmode="decimal" maxlength="14" placeholder="opt."></label>
+        </div>
+        <label class="field big"><span class="lbl">Callsign</span>
+          <input id="o-call" type="text" maxlength="20" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="W1ABC"></label>
+        <div id="o-dupe" class="callinfo" aria-live="polite"></div>
+        <div id="o-contestEntry">
+          <p class="hint small">Sent: <b id="o-sent"></b></p>
+          <label class="field big"><span class="lbl">Received exchange <span id="o-rcvdHint" class="muted"></span></span>
+            <input id="o-rcvd" type="text" maxlength="40" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done"></label>
+        </div>
+        <div id="o-actEntry" hidden>
+          <div class="grid g2">
+            <label class="field"><span class="lbl">RST sent</span><input id="o-rsts" type="text" maxlength="6" inputmode="numeric"></label>
+            <label class="field"><span class="lbl">RST rcvd</span><input id="o-rstr" type="text" maxlength="6" inputmode="numeric"></label>
+          </div>
+          <label class="field"><span class="lbl" id="o-theirLbl">Their park / summit (if any)</span>
+            <input id="o-their" type="text" maxlength="60" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="US-1234 or W7W/LC-001"></label>
+          <div id="o-flag" class="callinfo" aria-live="polite"></div>
+        </div>
+        <div id="o-err" class="banner error" role="alert" hidden></div>
+        <div class="actions">
+          <button id="o-log" type="submit" class="btn primary big">Log QSO</button>
+          <button id="o-clear" type="button" class="btn">Clear</button>
+        </div>
+        <p class="hint small kbd-hint">Call → Space or Enter jumps to the exchange · Enter logs · Esc clears</p>
+      </form>
+
+      <div class="card" id="o-statsCard" hidden>
+        <h2 id="o-statsTitle">Progress</h2>
+        <div id="o-stats" class="stats"></div>
+        <p id="o-note" class="hint small"></p>
+      </div>
+
+      <div class="card" id="o-exportCard" hidden>
+        <h2>Export this session</h2>
+        <div class="actions">
+          <button id="o-expAdif" type="button" class="btn">ADIF (.adi)</button>
+          <button id="o-expCab" type="button" class="btn">Cabrillo (.log)</button>
+          <button id="o-expPota" type="button" class="btn">POTA upload file(s)</button>
+          <button id="o-expSota" type="button" class="btn">SOTA CSV (V2)</button>
+        </div>
+        <p id="o-expHint" class="hint small"></p>
+      </div>
+
+      <div class="card" id="o-listCard" hidden>
+        <h2>Session QSOs <span id="o-listCount" class="muted small"></span></h2>
+        <ul id="o-list" class="qso-list compact"></ul>
+        <p class="hint small">Tap a QSO to edit or delete it on the Log tab. Contest and POTA/SOTA QSOs are in your main logbook and QRZ export too.</p>
       </div>
     </section>
 
@@ -306,6 +408,8 @@
   <script src="js/hamdata.js"></script>
   <script src="js/adif.js"></script>
   <script src="js/db.js"></script>
+  <script src="js/field.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/ops.js"></script>
 </body>
 </html>

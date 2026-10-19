@@ -2,13 +2,15 @@
 (function () {
   'use strict';
   const H = window.HamData, A = window.Adif, DB = window.HamDB;
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
 
   const DEFAULT_SETTINGS = { my_call: '', my_grid: '', operator: '', tx_pwr: '', theme: 'auto', autofill_prev: true };
   const PREFILL_FIELDS = ['name', 'qth', 'state', 'country', 'gridsquare'];
   const LIST_PAGE = 100;
+  const OPT_FIELDS = ['session_id', 'contest_id', 'srx', 'stx', 'srx_string', 'stx_string', 'my_sig', 'my_sig_info', 'sig', 'sig_info',
+    'my_sota_ref', 'sota_ref'];
 
   const state = {
     qsos: [],
@@ -97,7 +99,7 @@
   }
 
   /* ---------------- tabs ---------------- */
-  const TABS = ['log', 'list', 'export', 'settings'];
+  const TABS = ['log', 'ops', 'list', 'export', 'settings'];
   function showTab(name, opts) {
     if (TABS.indexOf(name) < 0) name = 'log';
     for (const t of TABS) $('#tab-' + t).hidden = t !== name;
@@ -106,6 +108,7 @@
     if (name === 'list') renderList();
     if (name === 'export') renderExport();
     if (name === 'settings') renderSettingsInfo();
+    if (name === 'ops' && window.HamOps) window.HamOps.render();
     if (!(opts && opts.noScroll)) window.scrollTo(0, 0);
   }
 
@@ -435,6 +438,11 @@
       <div class="q-main"><span class="q-call">${esc(q.call)}</span>
         <span class="q-tag">${esc(q.band || '?')}</span><span class="q-tag">${esc(H.modeLabel(q.mode, q.submode))}</span>
         ${isDupe ? '<span class="q-tag dupe">DUPE</span>' : ''}
+        ${q.contest_id ? '<span class="q-tag">' + esc(q.contest_id) + (q.srx || q.srx_string ? ' ' + esc([q.srx, q.srx_string].filter(Boolean).join(' ')) : '') + '</span>' : ''}
+        ${q.my_sig_info ? '<span class="q-tag">de ' + esc(q.pota_parks && q.pota_parks.length ? q.pota_parks.join(',') : q.my_sig_info) + '</span>' : ''}
+        ${q.my_sota_ref ? '<span class="q-tag">de ' + esc(q.my_sota_ref) + '</span>' : ''}
+        ${q.sig_info ? '<span class="q-tag ' + (q.my_sig_info ? 'p2p' : '') + '">' + (q.my_sig_info ? 'P2P ' : '') + esc(q.sig_info) + '</span>' : ''}
+        ${q.sota_ref ? '<span class="q-tag ' + (q.my_sota_ref ? 'p2p' : '') + '">' + (q.my_sota_ref ? 'S2S ' : '') + esc(q.sota_ref) + '</span>' : ''}
         ${q.uploaded_qrz ? '<span class="q-tag up" title="Uploaded to QRZ ' + esc(fmtLocal(q.uploaded_qrz)) + '">QRZ ✓</span>' : ''}</div>
       <div class="q-sub">${sub}</div>
       <div class="q-actions"><button type="button" class="btn small" data-act="edit" aria-label="Edit ${esc(q.call)}">Edit</button>
@@ -525,6 +533,7 @@
     renderRecent();
     if (!$('#tab-list').hidden) renderList();
     if (!$('#tab-export').hidden) renderExport();
+    if (!$('#tab-ops').hidden && window.HamOps) window.HamOps.render();
     updateCallInfo();
   }
 
@@ -628,7 +637,8 @@
   function backupJson() {
     const data = {
       app: 'HamLog', format: 1, version: APP_VERSION, exported: new Date().toISOString(),
-      settings: state.settings, last: state.last, qsos: state.qsos
+      settings: state.settings, last: state.last, qsos: state.qsos,
+      sessions: window.HamOps ? window.HamOps.sessions() : []
     };
     const name = 'hamlog-backup-' + fileStamp() + '.json';
     shareOrDownload(JSON.stringify(data, null, 1), name, isTouch(), 'application/json').then(res => {
@@ -648,6 +658,9 @@
     const str = ['id', 'call', 'qso_date', 'time_on', 'band', 'freq', 'mode', 'submode', 'rst_sent', 'rst_rcvd', 'name', 'qth', 'state',
       'country', 'gridsquare', 'comment', 'station_callsign', 'operator', 'my_gridsquare', 'tx_pwr', 'created', 'updated'];
     for (const k of str) q[k] = o[k] == null ? '' : String(o[k]);
+    // v1.1 contest / POTA / SOTA fields: only kept when present, so 1.0 records stay byte-for-byte the same shape
+    for (const k of OPT_FIELDS) if (o[k] != null && String(o[k]) !== '') q[k] = String(o[k]);
+    if (Array.isArray(o.pota_parks) && o.pota_parks.length) q.pota_parks = o.pota_parks.map(String);
     q.uploaded_qrz = o.uploaded_qrz ? String(o.uploaded_qrz) : null;
     q.extra = {};
     if (o.extra && typeof o.extra === 'object') for (const k of Object.keys(o.extra)) q.extra[k] = String(o.extra[k]);
@@ -690,6 +703,7 @@
       }
       out.textContent = 'Merged backup: ' + added + ' added, ' + updated + ' updated, ' + skipped + ' unchanged/duplicate.';
     }
+    if (Array.isArray(data.sessions) && window.HamOps) await window.HamOps.mergeSessions(data.sessions).catch(() => {});
     applyTheme(); loadSettingsForm(); resetForm(false); renderAll();
     toast('Restore complete', 'ok');
   }
@@ -930,6 +944,13 @@
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (state.updating) location.reload(); });
   }
 
+  /* ---------------- API for js/ops.js (contest / POTA / SOTA tab) ---------------- */
+  const api = {
+    state, uuid, esc, toast, plural, isTouch, shareOrDownload, downloadText, fileStamp, renderAll, startEdit, showTab,
+    exportDefaults, requestPersist: p => requestPersist(p), version: APP_VERSION,
+    adifFor: list => buildAdif(list)
+  };
+
   /* ---------------- init ---------------- */
   async function init() {
     fillSelects();
@@ -950,6 +971,9 @@
     applyTheme();
     loadSettingsForm();
     resetForm(!isTouch());
+    if (window.HamOps) {
+      try { await window.HamOps.init(api); } catch (err) { console.warn('Field ops init failed:', err); }
+    }
     renderAll();
     showTab((location.hash || '#log').slice(1), { noScroll: true });
     registerSW();

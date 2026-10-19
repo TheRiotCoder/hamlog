@@ -1,16 +1,19 @@
-/* HamLog – tiny promise wrapper around IndexedDB. Stores: qsos (keyPath id), meta (keyPath key). */
+/* HamLog – tiny promise wrapper around IndexedDB. Stores: qsos (keyPath id), meta (keyPath key), sessions (keyPath id, v2+).
+ * Schema upgrades ONLY add stores/indexes; existing QSO records are never rewritten or cleared by an upgrade. */
 (function (root) {
   'use strict';
   const DB_NAME = 'hamlog';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // v1: qsos+meta (HamLog 1.0) · v2: + sessions (contest / POTA / SOTA, HamLog 1.1)
   let dbPromise = null;
+  let upgradedFrom = null; // oldVersion seen in onupgradeneeded (0 = fresh install), null = no upgrade
 
   function open() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
       if (!('indexedDB' in root)) { reject(new Error('IndexedDB is not available in this browser')); return; }
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
+      req.onupgradeneeded = (ev) => {
+        upgradedFrom = ev.oldVersion;
         const db = req.result;
         if (!db.objectStoreNames.contains('qsos')) {
           const s = db.createObjectStore('qsos', { keyPath: 'id' });
@@ -18,6 +21,7 @@
           s.createIndex('qso_date', 'qso_date', { unique: false });
         }
         if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('sessions')) db.createObjectStore('sessions', { keyPath: 'id' });
       };
       req.onsuccess = () => {
         const db = req.result;
@@ -52,6 +56,10 @@
     del: id => tx('qsos', 'readwrite', s => s.delete(id)),
     clear: () => tx('qsos', 'readwrite', s => s.clear()),
     getMeta: key => tx('meta', 'readonly', s => s.get(key)).then(r => (r ? r.value : undefined)),
-    setMeta: (key, value) => tx('meta', 'readwrite', s => s.put({ key, value }))
+    setMeta: (key, value) => tx('meta', 'readwrite', s => s.put({ key, value })),
+    getSessions: () => tx('sessions', 'readonly', s => s.getAll()).then(r => r || []),
+    putSession: x => tx('sessions', 'readwrite', s => s.put(x)),
+    upgradedFrom: () => upgradedFrom,
+    version: DB_VERSION
   };
 })(typeof self !== 'undefined' ? self : this);
