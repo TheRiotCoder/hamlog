@@ -142,7 +142,7 @@ python3 -m http.server 8000
 To **install** the app on a phone you need **https**. See below.
 
 Tests: `node tests/adif.test.js && node tests/field.test.js` (Node 16+ works; no npm packages needed).
-Optional browser smoke tests (need `google-chrome` and `python3`): `node --experimental-websocket tests/browser-smoke.js` and `node --experimental-websocket tests/field-smoke.js`.
+Optional browser smoke tests (need `google-chrome` and `python3`): `node --experimental-websocket tests/browser-smoke.js` and `node --experimental-websocket tests/field-smoke.js` (set `HAMLOG_URL=https://…/` to run it against a live copy).
 
 ## Host it free over https (needed to install)
 PWAs can only be installed and work offline when they're served over **https**.

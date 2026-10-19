@@ -2,7 +2,7 @@
 // Run from anywhere: node --experimental-websocket tests/browser-smoke.js   (Node 22+: flag not needed)
 const { spawn, execSync } = require('child_process');
 const fs = require('fs');
-const PORT = 9334, APP = 'http://localhost:8766/';
+const PORT = 9334, APP = process.env.HAMLOG_URL || 'http://localhost:8766/';
 fs.mkdirSync('/tmp/hamlog-shots', { recursive: true });
 const DL = '/tmp/hamlog-dl2'; fs.rmSync(DL, { recursive: true, force: true }); fs.mkdirSync(DL, { recursive: true });
 fs.rmSync('/tmp/chrome-hamlog2', { recursive: true, force: true });
