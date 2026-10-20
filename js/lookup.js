@@ -108,11 +108,15 @@
     const mem = { qrzKey: null, hqId: null, hqAt: 0, blocked: {} };
     try { const k = opts.session && opts.session.get('qrzkey'); if (k) mem.qrzKey = k; } catch (e) { /* */ }
     function setQrzKey(k) { mem.qrzKey = k || null; try { if (opts.session) opts.session.set('qrzkey', k || null); } catch (e) { /* */ } }
-    async function get(url) {
+    /* 1.2.1: QRZ takes its parameters as a POST form body (tested 2026-10-19: login and lookup both answer, CORS "*" on the POST; an
+       application/x-www-form-urlencoded POST is a CORS "simple" request, so there's no preflight). Credentials then never appear in a URL (history,
+       proxy/server logs, Referer). HamQTH ignores a POST body ("Username or password missing"), so HamQTH stays GET over HTTPS - see README. */
+    async function get(url, form) {
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const t = ctrl && setTimeout(() => ctrl.abort(), opts.timeoutMs || 8000);
       try {
-        const r = await f(url, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: ctrl ? ctrl.signal : undefined });
+        const init = form ? { method: 'POST', body: new URLSearchParams(form).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } } : { method: 'GET' };
+        const r = await f(url, Object.assign(init, { mode: 'cors', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: ctrl ? ctrl.signal : undefined }));
         if (!r.ok) throw LookupError('http', 'HTTP ' + r.status);
         return await r.text();
       } catch (e) {
@@ -122,7 +126,7 @@
     }
     function credKey(c, a, b) { return (c[a] || '') + '\u0000' + (c[b] || '').length; }   // (changes when the login changes; nothing secret is kept)
     async function qrzLogin(c) {
-      const x = parseQrz(await get(QRZ_URL + '?username=' + enc(c.qrzUser) + ';password=' + enc(c.qrzPass) + ';agent=' + enc(opts.agent || 'HamLog')));
+      const x = parseQrz(await get(QRZ_URL, { username: c.qrzUser, password: c.qrzPass, agent: opts.agent || 'HamLog' }));
       if (!x.key) {
         const msg = x.error || 'login failed';
         if (/connection refused/i.test(msg)) { mem.blocked.qrz = { why: 'QRZ refused service for 24 h', until: now() + 864e5, ck: credKey(c, 'qrzUser', 'qrzPass') }; }
@@ -135,7 +139,7 @@
     async function qrz(call, c) {
       if (!mem.qrzKey) await qrzLogin(c);
       for (let attempt = 0; attempt < 2; attempt++) {
-        const x = parseQrz(await get(QRZ_URL + '?s=' + enc(mem.qrzKey) + ';callsign=' + enc(call)));
+        const x = parseQrz(await get(QRZ_URL, { s: mem.qrzKey, callsign: call }));
         if (x.rec) { if (x.key) setQrzKey(x.key); return { data: fromQrz(x.rec), subscriber: !!x.subExp && !/non-subscriber/i.test(x.subExp), message: x.message, count: x.count }; }
         if (/^not found/i.test(x.error)) { if (x.key) setQrzKey(x.key); return { data: null, notFound: true }; }
         if (!x.key) {   // per spec: no <Key> = no valid session; log in again (once)
@@ -147,7 +151,7 @@
       throw LookupError('service', 'session could not be re-established');
     }
     async function hamqth(call, c, retried) {
-      if (!mem.hqId || now() - mem.hqAt > 55 * 60e3) {   // HamQTH session ids are valid for 60 minutes
+      if (!mem.hqId || now() - mem.hqAt > 55 * 60e3) {   // GET on purpose: HamQTH's xml.php reads only query parameters (POST body ignored, tested 2026-10-19)   // HamQTH session ids are valid for 60 minutes
         const x = parseHamqth(await get(HAMQTH_URL + '?u=' + enc(c.hamqthUser) + '&p=' + enc(c.hamqthPass)));
         if (!x.sessionId) { mem.blocked.hamqth = { why: 'HamQTH rejected the login', until: Infinity, ck: credKey(c, 'hamqthUser', 'hamqthPass') }; throw LookupError('auth', redact(x.error || 'login failed')); }
         mem.hqId = x.sessionId; mem.hqAt = now();

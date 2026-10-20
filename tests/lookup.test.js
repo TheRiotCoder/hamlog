@@ -19,7 +19,9 @@ const CALLOOK = JSON.stringify({ status: 'VALID', name: 'JOHN Q PUBLIC', address
 function mk(routes, extra) {
   const log = [], cache = {}, sess = {};
   let creds = (extra && extra.creds) || { qrzUser: 'N0CALL', qrzPass: 'hunter2-secret' };
-  const fetch = async (url) => {
+  const fetch = async (url0, init) => {
+    const url = init && init.method === 'POST' ? url0 + '?' + init.body : url0;
+    if (init && init.method === 'POST') assert.ok(!/password|username/.test(url0), 'no credentials in a POST URL');
     log.push(url);
     for (const [re, fn] of routes) if (re.test(url)) { const b = typeof fn === 'function' ? fn(url) : fn; if (b instanceof Error) throw b; return { ok: true, status: 200, text: async () => b }; }
     throw new TypeError('Failed to fetch');
@@ -54,11 +56,26 @@ test('merge: first source per field wins and is labelled', () => {
   assert.deepStrictEqual(m, { fields: { name: 'A', grid: 'FN31' }, sources: { name: 'qrz', grid: 'callook' } });
 });
 test('client: QRZ login once, key reused, free-account note', async () => {
-  const t = mk([[/username=/, QRZ_LOGIN], [/s=KEY1;callsign=DL1ABC/, QRZ_FREE]]);
+  const t = mk([[/username=/, QRZ_LOGIN], [/s=KEY1&callsign=DL1ABC/, QRZ_FREE]]);
   const r = await t.c.lookup('DL1ABC'); assert.strictEqual(r.fields.name, 'Hans Mueller'); assert.strictEqual(r.sources.country, 'qrz');
   assert.ok(r.notes.some(n => /free account/.test(n)));
   t.cache.cache = {}; await t.c.lookup('DL1ABC');
   assert.strictEqual(t.log.filter(u => /username=/.test(u)).length, 1); assert.strictEqual(t.sess.qrzkey, 'KEY1');
+});
+test('client: QRZ login + lookup are POST bodies, HamQTH stays GET', async () => {
+  const seen = [];
+  const c = L.createClient({ fetch: async (u, i) => { seen.push([u, i.method, i.body || '']); return { ok: true, status: 200, text: async () => (/username/.test(i.body || '') ? QRZ_LOGIN : /hamqth/.test(u) ? (/\?u=/.test(u) ? HQ_LOGIN : HQ_REC) : QRZ_FREE) }; },
+    getCreds: () => ({ qrzUser: 'N0CALL', qrzPass: 'hunter2-secret', hamqthUser: 'x', hamqthPass: 'y' }), cfg: () => ({ qrz: true, hamqth: true, callook: false, prefix: true }), store: null, session: null });
+  await c.lookup('OK2CQR');
+  const q = seen.filter(s => /qrz/.test(s[0]));
+  assert.strictEqual(q.length, 2); assert.ok(q.every(s => s[1] === 'POST' && s[0] === L.QRZ_URL));
+  assert.ok(/username=N0CALL&password=hunter2-secret/.test(q[0][2])); assert.ok(/s=KEY1&callsign=OK2CQR/.test(q[1][2]));
+  assert.ok(seen.filter(s => /hamqth/.test(s[0])).every(s => s[1] === 'GET'));
+});
+test('client: clearSession wipes the QRZ key from session storage and HamQTH id', async () => {
+  const t = mk([[/username=/, QRZ_LOGIN], [/callsign=/, QRZ_FREE]], { cfg: { callook: false } });
+  await t.c.lookup('DL1ABC'); assert.strictEqual(t.sess.qrzkey, 'KEY1');
+  t.c.clearSession(); assert.strictEqual(t.sess.qrzkey, null); assert.strictEqual(t.c._mem.qrzKey, null); assert.strictEqual(t.c._mem.hqId, null);
 });
 test('client: missing <Key> -> re-login once', async () => {
   let n = 0;

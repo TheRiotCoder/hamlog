@@ -1,5 +1,5 @@
 /* HamLog service worker – offline app shell (cache-first, versioned). Bump VERSION on every release. */
-const VERSION = 'hamlog-v1.2.0';
+const VERSION = 'hamlog-v1.2.1';
 const ASSETS = [
   './',
   './index.html',

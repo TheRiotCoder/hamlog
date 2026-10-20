@@ -130,8 +130,29 @@ the first source that returns a value for a field wins:
 | callook.info | None | US calls only (FCC data): name, city, state, grid |
 | Offline prefix table | None, and works offline | Country only, approximate (common ITU blocks; not a full DXCC list) |
 
-Results are cached on the device for 30 days, up to 500 calls. **Settings → Test a lookup** shows the raw result with sources.
-The cache can be cleared there too.
+Results (names, cities, grids, countries) are cached on the device for 30 days, up to 500 calls. **The cache is not encrypted.**
+Only your logins are. Settings → Callsign lookup says so next to the **Clear lookup cache** button, which also shows how many
+calls are cached. **Forget all logins** has an optional "Also clear the lookup cache" checkbox. **Settings → Test a lookup** shows the
+raw result with sources.
+
+### How credentials are sent (1.2.1)
+I tested both services on 2026-10-19 with a dummy login and `Origin: https://theriotcoder.github.io`:
+- **QRZ: POST.**
+  - `xmldata.qrz.com` accepts `username`, `password` and `agent` as an `application/x-www-form-urlencoded` POST body.
+  - A dummy login gets "Username/password incorrect", while an empty body gets "Username / password required", so the body is read.
+  - The `s` (session key) and `callsign` lookup parameters work the same way.
+  - The POST answer carries `Access-Control-Allow-Origin: *`. A form-encoded POST is a CORS "simple" request, so there's no preflight.
+  - HamLog sends every QRZ request as a POST. The password and session key never appear in a URL, so they stay out of browser
+    history, server and proxy logs, and `Referer`.
+- **HamQTH: GET (no choice).**
+  - `www.hamqth.com/xml.php` ignores a POST body: login gets "Username or password missing", and a lookup gets the same.
+  - It only reads query parameters, so HamQTH login stays `GET ?u=&p=` over HTTPS, with `referrerPolicy: no-referrer` and `cache: no-store`.
+  - The password is in that URL, which HamQTH's own logs can see. If that matters to you, use QRZ and/or callook.info and leave
+    HamQTH off.
+
+The session keys (QRZ key in `sessionStorage`, HamQTH session id in memory) are dropped on every lock (manual or auto-lock,
+idle or hidden), on Forget all logins and on Remove passphrase. The login forms also use `method="post"`, and the CSP has
+`form-action 'none'`, so even if a script fails, a browser can never put the password into a URL by submitting the form.
 
 ### What a free QRZ account gets (no fees needed)
 - Logging in to the QRZ XML interface works with any QRZ account.

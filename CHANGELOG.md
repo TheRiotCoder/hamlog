@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.1 – 2026-10-19
+Security review follow-ups (three Low items, nothing blocking).
+### Changed
+- **QRZ credentials are no longer put in a URL.** Login and lookups are sent as a form-encoded POST body. This was tested against
+  xmldata.qrz.com, and the POST is allowed by CORS (`*`) with no preflight. HamQTH ignores POST bodies, so it stays GET over HTTPS.
+  This is documented in `js/lookup.js` and the README.
+- QRZ/HamQTH session keys are cleared on auto-lock (idle and hidden), Forget all logins and Remove passphrase, as Lock now already did.
+- Lookup cache: the **Clear lookup cache** button now sits next to a visible note that cached names and cities are stored
+  **unencrypted** on this device, with a count of cached calls. Forget all logins has an optional "Also clear the lookup cache" checkbox.
+- Login and vault forms use `method="post"` (defense in depth on top of CSP `form-action 'none'`).
+- Version 1.2.1, service-worker cache `hamlog-v1.2.1`.
+### Tests
+- `tests/lookup.test.js`: 16 tests. New: QRZ uses POST bodies and HamQTH stays GET; `clearSession` wipes the stored key.
+  The mock also fails any test that puts credentials in a POST URL.
+- `tests/lookup-smoke.js`: 48 checks. New: QRZ is POST-only with no password in any URL; the session key is cleared on idle
+  auto-lock, hidden auto-lock, Remove passphrase and Forget; the cache note is visible; the cache checkbox and Clear button work.
+
 ## 1.2.0 – 2026-10-19
 ### Added
 - **Callsign lookup**: name, QTH, state, country and grid. Only empty fields are filled; typed values are never overwritten.

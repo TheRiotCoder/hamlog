@@ -16,7 +16,7 @@
     cfg: () => cfg,
     store: { get: k => js(localStorage, k, null), set: (k, v) => put(localStorage, k, v) },
     session: { get: k => js(sessionStorage, k, null), set: (k, v) => put(sessionStorage, k, v) },
-    agent: 'HamLog-1.2.0', redact: t => V.redact(t)
+    agent: 'HamLog-1.2.1', redact: t => V.redact(t)
   });
   const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const online = () => navigator.onLine !== false;
@@ -40,7 +40,7 @@
     const r = await client.lookup(call, { online: online() });
     if (my !== seq || !api) return;
     const { o, s } = toForm(r);
-    const filled = api.fillBlanks(call, o, s);
+    const filled = api.fillBlanks(call, o, s); renderCacheInfo();
     const locked = V.isLocked() ? ' · logins locked' : '';
     const notes = r.notes.join('\n');
     if (!Object.keys(r.fields).length) chip((r.offline ? 'Offline – no lookup' : 'No lookup data') + locked, 'muted', notes);
@@ -110,8 +110,10 @@
       if (a.value !== b.value) { msg('The two passphrases do not match.', true); return; }
       V.lock(a.value).then(r => { a.value = b.value = ''; msg('Logins encrypted on this device.' + (r.bioRemoved ? ' Biometric unlock was removed; enable it again.' : '')); }, fail); });
     $('#btnLockNow').addEventListener('click', () => { V.lockNow(); client.clearSession(); msg('Locked.'); });
-    $('#btnRemovePass').addEventListener('click', () => { if (!confirm('Remove the passphrase? Logins will be kept for this tab only and the encrypted copy is deleted.')) return; V.removePassphrase().then(() => msg('Passphrase removed; logins are session-only.'), fail); });
-    $('#btnForgetCreds').addEventListener('click', () => { if (!confirm('Forget all saved logins on this device?')) return; V.forgetCreds(); client.clearSession(); msg('Logins forgotten.'); });
+    $('#btnRemovePass').addEventListener('click', () => { if (!confirm('Remove the passphrase? Logins will be kept for this tab only and the encrypted copy is deleted.')) return; V.removePassphrase().then(() => { client.clearSession(); msg('Passphrase removed; logins are session-only.'); }, fail); });
+    $('#btnForgetCreds').addEventListener('click', () => { const alsoCache = $('#lk-forgetCache').checked;
+      if (!confirm('Forget all saved logins on this device?' + (alsoCache ? ' The lookup cache is cleared too.' : ''))) return;
+      V.forgetCreds(); client.clearSession(); if (alsoCache) clearCache(); msg('Logins forgotten' + (alsoCache ? ' and lookup cache cleared.' : '.')); });
     $('#vaultIdle').addEventListener('change', e => V.setVaultCfg({ idleMin: +e.target.value }));
     $('#vaultHidden').addEventListener('change', e => V.setVaultCfg({ hiddenMin: +e.target.value }));
     $('#btnBioEnroll').addEventListener('click', () => { B.enroll().then(m => { const prf = m.prf; delete m.prf; return V.bioSave(m, prf); }).then(() => msg('Biometric unlock enabled.'), fail); });
@@ -126,21 +128,29 @@
       const r = await client.lookup(call, { online: online(), force: true });
       const rows = Object.keys(r.fields).map(k => '<div><b>' + esc(k) + '</b>: ' + esc(r.fields[k]) + ' <span class="muted">(' + esc(L.LABEL[r.sources[k]]) + ')</span></div>');
       out.innerHTML = (rows.join('') || '<div>No data.</div>') + (r.notes.length ? '<div class="muted">' + r.notes.map(esc).join('<br>') + '</div>' : ''); });
-    $('#lk-clearCache').addEventListener('click', () => { put(localStorage, 'cache', null); msg('Lookup cache cleared.'); });
+    $('#lk-clearCache').addEventListener('click', () => { clearCache(); const o = $('#lk-cacheMsg'); if (o) o.textContent = 'Lookup cache cleared.'; });
     // auto-lock
     ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { lastActive = Date.now(); }, { passive: true, capture: true }));
     document.addEventListener('visibilitychange', () => { hiddenSince = document.hidden ? Date.now() : null; checkLock(); });
     setInterval(checkLock, 15000);
   }
-  function checkLock() {
-    if (V.isLocked() || !V.hasPassphrase()) return;
-    if (V.lockDue({ now: Date.now(), lastActive, hiddenSince })) { V.lockNow(); client.clearSession(); }
+  // st (tests only) overrides {now, lastActive, hiddenSince}
+  function checkLock(st) {
+    if (V.isLocked() || !V.hasPassphrase()) return false;
+    st = Object.assign({ now: Date.now(), lastActive, hiddenSince }, st);
+    const why = V.lockDue(st); if (why) { V.lockNow(); client.clearSession(); }
+    return why;
   }
+  function clearCache() { put(localStorage, 'cache', null); renderCacheInfo(); }
+  function renderCacheInfo() { const e = $('#lk-cacheCount'); if (!e) return; const n = Object.keys(js(localStorage, 'cache', {}) || {}).length; e.textContent = n + ' call' + (n === 1 ? '' : 's') + ' cached'; }
+  // 1.2.1: any lock (manual or auto), forget or passphrase removal also drops the QRZ/HamQTH session keys (sessionStorage + memory)
+  let lastMode = V.credMode();
+  function onVaultChange() { const m = V.credMode(); if (m === 'locked' || m === 'none' || (lastMode === 'encrypted' && m === 'session')) client.clearSession();   /* lock, forget, remove passphrase */ lastMode = m; renderVault(); }
 
   function init(a) {
     api = a; renderCfg(); bind(); renderVault();
-    V.onChange(renderVault);
+    V.onChange(onVaultChange); renderCacheInfo(); setInterval(renderCacheInfo, 30000);
     if (V.credMode() === 'legacy-plain') V.dropPlaintextCopy();
   }
-  window.HamLookupUI = { init, onCall, _client: client, _checkLock: checkLock };
+  window.HamLookupUI = { init, onCall, clearCache, _client: client, _checkLock: checkLock };
 })();

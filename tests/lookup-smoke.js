@@ -54,7 +54,7 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: DL }).catch(() => send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DL }));
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   // ---- mock the lookup services (never touches the real QRZ) ----
-  const hits = [];
+  const hits = [], reqs = [];
   const KEYXML = '<QRZDatabase><Session><Key>MOCKKEY</Key><SubExp>non-subscriber</SubExp></Session></QRZDatabase>';
   const rec = c => c === 'DL1ABC' ? '<QRZDatabase><Callsign><call>DL1ABC</call><fname>HANS</fname><name>MUELLER</name><addr2>BERLIN</addr2><country>Germany</country></Callsign><Session><Key>MOCKKEY</Key><SubExp>non-subscriber</SubExp><Message>A subscription is required to access the complete record.</Message></Session></QRZDatabase>'
     : c === 'W1AW' ? '<QRZDatabase><Callsign><call>W1AW</call><fname>ARRL</fname><name>HQ</name><addr2>NEWINGTON</addr2><state>CT</state><country>United States</country></Callsign><Session><Key>MOCKKEY</Key><SubExp>non-subscriber</SubExp></Session></QRZDatabase>'
@@ -62,7 +62,7 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   const CALLOOK = JSON.stringify({ status: 'VALID', name: 'ARRL INC', address: { line2: 'NEWINGTON, CT 06111' }, location: { gridsquare: 'FN31pr' } });
   ws.addEventListener('message', ev => {
     const m = JSON.parse(ev.data); if (m.method !== 'Fetch.requestPaused') return;
-    const u = m.params.request.url; hits.push(u);
+    const rq = m.params.request, u = rq.url + (rq.method === 'POST' ? '?' + (rq.postData || '') : ''); hits.push(u); reqs.push([rq.method, rq.url]);
     let body = '';
     if (/xmldata\.qrz\.com/.test(u)) { const c = /callsign=([^;&]+)/.exec(u); body = c ? rec(decodeURIComponent(c[1])) : KEYXML; }
     else if (/callook\.info/.test(u)) body = /W1AW/.test(u) ? CALLOOK : JSON.stringify({ status: 'INVALID' });
@@ -82,7 +82,7 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   let ld = waitEvent('Page.loadEventFired'); await send('Page.navigate', { url: APP + '#log' }); await ld; await sleep(1200);
   await evalJs(`localStorage.clear(); sessionStorage.clear(); true`);
   ld = waitEvent('Page.loadEventFired'); await send('Page.reload', { ignoreCache: true }); await ld; await sleep(1200);
-  check('version 1.2.0', await evalJs(`fetch('sw.js',{cache:'no-store'}).then(r=>r.text()).then(t=>t.includes('hamlog-v1.2.0'))`));
+  check('version 1.2.1', await evalJs(`fetch('sw.js',{cache:'no-store'}).then(r=>r.text()).then(t=>t.includes('hamlog-v1.2.1'))`));
   check('modules loaded', await evalJs(`!!(window.HamVault && window.HamLookup && window.HamLookupUI && window.HamVaultCrypto)`));
   check('lookup card present, enabled by default', await evalJs(`!!document.querySelector('#lookupCard') && document.querySelector('#lk-enabled').checked`));
   const host = await evalJs('location.hostname');
@@ -113,7 +113,9 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   await setv('#f-name', 'Typed Name'); await setv('#f-call', 'DL1ABC'); await sleep(1500);
   check('QRZ: blank fields filled (qth, country)', (await val('#f-qth')) === 'Berlin' && (await val('#f-country')) === 'Germany', [await val('#f-qth'), await val('#f-country')]);
   check('QRZ: typed name NOT overwritten', (await val('#f-name')) === 'Typed Name');
-  check('QRZ: login + lookup via mocked xmldata.qrz.com, key reused', hits.filter(u => /username=/.test(u)).length === 1 && hits.some(u => /s=MOCKKEY;callsign=DL1ABC/.test(u)));
+  check('QRZ: login + lookup via mocked xmldata.qrz.com, key reused', hits.filter(u => /qrz.*username=/.test(u)).length === 1 && hits.some(u => /s=MOCKKEY&callsign=DL1ABC/.test(u)));
+  check('QRZ: POST only, password never in a request URL', reqs.filter(r => /qrz/.test(r[1])).every(r => r[0] === 'POST' && !r[1].includes(PW) && !/username|password/.test(r[1])));
+  check('QRZ session key kept in sessionStorage', await evalJs(`sessionStorage.getItem('hamlog:lookup:qrzkey')==='"MOCKKEY"'`));
   check('chip names QRZ.com', /QRZ/.test(await evalJs(`document.querySelector('#lookupChip').textContent`)));
   check('no credential in console logs', !logs.join('\n').includes(PW));
   const nHits = hits.length;
@@ -132,11 +134,37 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   check('wrong passphrase rejected', await evalJs(`HamVault.isLocked()`) && (await evalJs(`document.querySelector('#vaultMsg').textContent`)).length > 0);
   await setv('#vaultUnlockPass', VPASS); await submit('#vaultUnlockForm'); await sleep(2500);
   check('unlock restores login', await evalJs(`!HamVault.isLocked() && HamVault.getCreds().qrzUser==='N0CALL'`) && (await val('#cr-qrzUser')) === 'N0CALL' && (await val('#cr-qrzPass')) === '');
+  // 1.2.1: session keys cleared by every way the logins go away
+  const KEYQ = `sessionStorage.getItem('hamlog:lookup:qrzkey')`;
+  const primeKey = async () => { await evalJs(`HamLookupUI._client.lookup('W1AW',{force:true})`); return evalJs(`${KEYQ}==='"MOCKKEY"'`); };
+  check('session key present after unlock + lookup', await primeKey());
+  check('auto-lock (idle) locks + clears session key', (await evalJs(`HamLookupUI._checkLock({now: Date.now(), lastActive: Date.now() - 16*60e3, hiddenSince: null})`)) === 'idle' && await evalJs(`HamVault.isLocked() && ${KEYQ}===null`));
+  await setv('#vaultUnlockPass', VPASS); await submit('#vaultUnlockForm'); await sleep(2500);
+  check('session key present again', await primeKey());
+  check('auto-lock (hidden) locks + clears session key', (await evalJs(`HamLookupUI._checkLock({now: Date.now(), lastActive: Date.now(), hiddenSince: Date.now() - 6*60e3})`)) === 'hidden' && await evalJs(`HamVault.isLocked() && ${KEYQ}===null`));
+  await setv('#vaultUnlockPass', VPASS); await submit('#vaultUnlockForm'); await sleep(2500);
+  check('cache warning visible near Clear lookup cache', await evalJs(`(() => { const n=document.querySelector('#lk-cacheNote'), b=document.querySelector('#lk-clearCache'); return !!n.offsetParent && !!b.offsetParent && /unencrypted/i.test(n.textContent); })()`));
   // encrypted backup
   await setv('#vaultBackupPass', 'backup pass phrase'); await click('#btnVaultExport'); await sleep(2500);
   const bk = fs.readdirSync(DL).filter(f => /hamlog-logins-encrypted/.test(f));
   check('encrypted backup downloaded, no plaintext', bk.length === 1 && !fs.readFileSync(DL + '/' + bk[0], 'utf8').includes(PW) && /hamlog-credentials-backup/.test(fs.readFileSync(DL + '/' + bk[0], 'utf8')));
   check('JSON log backup does not include logins', !(await evalJs(`HamDB.getAll().then(a=>JSON.stringify(a))`)).includes(PW));
+  // remove passphrase -> session key cleared (logins become session-only)
+  await evalJs(`document.querySelector('#vaultDetails').open=true`);
+  check('session key present before remove-passphrase', await primeKey());
+  await click('#btnRemovePass'); await sleep(800);
+  check('remove passphrase clears session key', await evalJs(`HamVault.credMode()==='session' && ${KEYQ}===null`));
+  // forget logins without / with the cache checkbox
+  check('session key present before forget', await primeKey());
+  const cacheN = () => evalJs(`Object.keys(JSON.parse(localStorage.getItem('hamlog:lookup:cache')||'{}')).length`);
+  const n0 = await cacheN();
+  await click('#btnForgetCreds'); await sleep(300);
+  check('forget clears session key, keeps cache when unchecked', await evalJs(`HamVault.credMode()==='none' && ${KEYQ}===null`) && (await cacheN()) === n0 && n0 > 0, n0);
+  await setv('#cr-qrzUser', 'N0CALL'); await setv('#cr-qrzPass', PW); await submit('#qrzCredForm'); await sleep(300);
+  await evalJs(`document.querySelector('#lk-forgetCache').checked=true`); await click('#btnForgetCreds'); await sleep(300);
+  check('forget with checkbox also clears cache', (await cacheN()) === 0 && await evalJs(`HamVault.credMode()==='none'`));
+  await primeKey(); await click('#lk-clearCache'); await sleep(100);
+  check('Clear lookup cache button works', (await cacheN()) === 0 && /cleared/.test(await evalJs(`document.querySelector('#lk-cacheMsg').textContent`)));
   // toggle off
   await click('#lk-enabled'); await sleep(100);
   await evalJs(`location.hash='#log'`); await setv('#f-call', 'W1AW'); await sleep(1300);

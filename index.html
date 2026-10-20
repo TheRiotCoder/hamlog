@@ -374,12 +374,17 @@
           <label class="check"><input id="lk-callook" type="checkbox"> <span>callook.info (US calls only, no login; FCC name, city, grid)</span></label>
           <label class="check"><input id="lk-prefix" type="checkbox"> <span>Offline country from the call-sign prefix (approximate)</span></label>
         </fieldset>
-        <p class="hint small">Each filled field shows where it came from. Results are cached on this device for 30 days. Offline, only the prefix country is used.</p>
+        <p class="hint small">Each filled field shows where it came from. Offline, only the prefix country is used.</p>
+        <div class="cachebox" id="lk-cacheBox">
+          <p class="banner small" id="lk-cacheNote">ⓘ Looked-up names, cities and grids are cached for 30 days <b>unencrypted</b> on this device (only your logins are encrypted).</p>
+          <div class="actions"><button id="lk-clearCache" type="button" class="btn">Clear lookup cache</button> <span id="lk-cacheCount" class="hint small"></span></div>
+          <p id="lk-cacheMsg" class="hint small" aria-live="polite"></p>
+        </div>
 
         <h3>Logins (stored only on this device)</h3>
         <p id="vaultStatus" class="banner" aria-live="polite"></p>
         <div id="vaultUnlockBox" hidden>
-          <form id="vaultUnlockForm" autocomplete="on" novalidate>
+          <form id="vaultUnlockForm" autocomplete="on" novalidate method="post">
             <input type="text" name="username" autocomplete="username" value="HamLog vault" class="vh" tabindex="-1" aria-hidden="true" readonly>
             <label class="field"><span class="lbl">Vault passphrase</span>
               <input id="vaultUnlockPass" type="password" autocomplete="current-password" spellcheck="false"></label>
@@ -388,7 +393,7 @@
           </form>
         </div>
         <div id="credBox">
-          <form id="qrzCredForm" class="credform" autocomplete="on" novalidate action="#">
+          <form id="qrzCredForm" class="credform" autocomplete="on" novalidate action="#" method="post">
             <div class="grid g2">
               <label class="field"><span class="lbl">QRZ username (call sign)</span>
                 <input id="cr-qrzUser" name="username" type="text" autocomplete="username" autocapitalize="characters" spellcheck="false"></label>
@@ -397,7 +402,7 @@
             </div>
             <div class="actions"><button type="submit" class="btn">Save QRZ login</button></div>
           </form>
-          <form id="hamqthCredForm" class="credform" autocomplete="on" novalidate action="#">
+          <form id="hamqthCredForm" class="credform" autocomplete="on" novalidate action="#" method="post">
             <div class="grid g2">
               <label class="field"><span class="lbl">HamQTH username</span>
                 <input id="cr-hamqthUser" name="username" type="text" autocomplete="username" spellcheck="false"></label>
@@ -410,7 +415,7 @@
 
           <details class="station-details" id="vaultDetails">
             <summary>Encryption, auto-lock &amp; backup</summary>
-            <form id="vaultPassForm" autocomplete="on" novalidate>
+            <form id="vaultPassForm" autocomplete="on" novalidate method="post">
               <input type="text" name="username" autocomplete="username" value="HamLog vault" class="vh" tabindex="-1" aria-hidden="true" readonly>
               <div class="grid g2">
                 <label class="field"><span class="lbl">New vault passphrase (10+ characters)</span>
@@ -432,6 +437,7 @@
               <button id="btnRemovePass" type="button" class="btn">Remove passphrase (session-only)</button>
               <button id="btnForgetCreds" type="button" class="btn danger">Forget all logins</button>
             </div>
+            <label class="check"><input id="lk-forgetCache" type="checkbox"> <span>Also clear the lookup cache when forgetting logins</span></label>
             <div id="bioBox">
               <div class="actions"><button id="btnBioEnroll" type="button" class="btn" hidden>Enable biometric unlock</button>
                 <button id="btnBioRemove" type="button" class="btn" hidden>Remove biometric unlock</button></div>
@@ -454,7 +460,6 @@
         <div class="grid g-dt">
           <label class="field"><span class="lbl">Call sign</span><input id="lk-testCall" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" placeholder="W1AW"></label>
           <button id="lk-testBtn" type="button" class="btn">Look up</button>
-          <button id="lk-clearCache" type="button" class="btn">Clear cache</button>
         </div>
         <div id="lk-testOut" class="hint small" aria-live="polite"></div>
       </div>

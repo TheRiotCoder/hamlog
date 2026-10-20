@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const H = window.HamData, A = window.Adif, DB = window.HamDB;
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.2.1';
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
 
