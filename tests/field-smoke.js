@@ -50,7 +50,7 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
     if (method === 'Page.javascriptDialogOpening') { dialogs.push(params.type + ': ' + params.message); send('Page.handleJavaScriptDialog', { accept: dialogAccept, promptText: 'DELETE' }); }
     for (let i = listeners.length - 1; i >= 0; i--) if (listeners[i].name === method) { const l = listeners[i]; listeners.splice(i, 1); l.fn(params); }
   });
-  await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable'); await send('Network.enable'); await send('DOM.enable');
+  await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable'); await send('Network.enable'); await send('Network.setBlockedURLs', { urls: ['*xmldata.qrz.com*', '*hamqth.com*', '*callook.info*'] }); // 1.2 lookup: keep these runs offline-deterministic (lookup must fail silently) await send('DOM.enable');
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: DL }).catch(() => send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DL }));
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 

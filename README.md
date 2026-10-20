@@ -111,6 +111,96 @@ logbook and the QRZ export.
 Not verified: `ARRL-FD` as the Field Day Cabrillo `CONTEST:` value. It's what common loggers write, but ARRL's Field Day rules
 don't name one, and Cabrillo is optional for Field Day. QSO-party exchanges vary by state and aren't validated.
 
+## Callsign lookup and the login vault (v1.2)
+
+When you're online and type a call, HamLog can look up the other station's **name, city (QTH), state, country and grid**.
+It fills **only the empty fields** and never overwrites anything you typed. Filled fields get a dashed border, and hovering
+over one (its `title`) shows where the value came from. A small status chip under the call field names the sources, for
+example `QRZ.com: name, qth, country · callook.info: grid`. The chip also says when you're offline, when nothing was found,
+or when your logins are locked. Lookups wait about 0.65 s after you stop typing. They never block logging, and errors are
+silent apart from the chip.
+
+**Settings → Callsign lookup** has the main on/off switch and one checkbox per source. Sources are tried in this order, and
+the first source that returns a value for a field wins:
+
+| Source | Login | What it returns |
+|---|---|---|
+| QRZ.com XML (`xmldata.qrz.com`) | Your QRZ username and password | **Free account:** name, city (`addr2`) and country only. **Grid needs a paid XML subscription.** |
+| HamQTH.com XML | Free HamQTH account | Name/nick, QTH, country, grid. HamQTH is only asked when name or grid is still missing. |
+| callook.info | None | US calls only (FCC data): name, city, state, grid |
+| Offline prefix table | None, and works offline | Country only, approximate (common ITU blocks; not a full DXCC list) |
+
+Results are cached on the device for 30 days, up to 500 calls. **Settings → Test a lookup** shows the raw result with sources.
+The cache can be cleared there too.
+
+### What a free QRZ account gets (no fees needed)
+- Logging in to the QRZ XML interface works with any QRZ account.
+- Without an *XML Logbook Data* subscription, the session reports `SubExp: non-subscriber` along with the message "A subscription is
+  required to access the complete record." Only a limited set of fields comes back: call, first and last name, city (`addr2`) and
+  country. There's no grid, lat/lon, DXCC, email or full address.
+- Third-party docs say free accounts are limited to about 100 lookups a day. HamLog's cache keeps repeat lookups off that count.
+- HamLog follows the spec:
+  - It logs in once, keeps the session key for the tab (`sessionStorage`) and reuses it.
+  - When a reply has no `<Key>`, it logs in again, once.
+  - It treats `Not found:` as a miss.
+  - A rejected password stops retries until you change the login.
+  - `Connection refused` pauses QRZ for 24 h.
+- To get a grid without paying: add a free HamQTH login. For US calls, callook.info supplies the grid automatically.
+
+### CORS (tested 2026-10-19), so no proxy is needed
+Requests sent with `Origin: https://theriotcoder.github.io` got these answers:
+- `xmldata.qrz.com` answered with `Access-Control-Allow-Origin: *`, both on GET and on the OPTIONS preflight.
+- `www.hamqth.com` and `callook.info` also answer with `*`.
+
+The browser can therefore call all three directly. **HamLog does not use or need a proxy** (no Cloudflare Worker), so nothing sits
+between your device and these services. If QRZ ever removes CORS, lookups fail silently and the chip says the service is unreachable.
+The CSP `connect-src` only allows these three hosts besides the POTA/SOTA APIs.
+
+### Logins are stored only on this device, encrypted
+- The vault code is **ported directly from SatPass 1.3.5**, which was already reviewed. It includes the operation queue, the lock and
+  save timing fixes, padded biometric wraps and the AAD-bound backup header. The files are `js/vaultcrypto.js`, `js/vault.js` and
+  `js/bio.js`; only names and storage keys were changed.
+- **Without a passphrase**, logins are kept for this tab only (`sessionStorage`). They're gone when the tab closes, and nothing
+  readable is written to `localStorage`.
+- **With a passphrase** (10+ characters):
+  - A random 256-bit data key encrypts the logins with AES-GCM.
+  - That data key is wrapped by a key derived from your passphrase with PBKDF2-SHA256 at 600,000 iterations. The salt and the
+    iteration count are bound with AAD.
+  - The passphrase itself is never stored.
+  - Changing the passphrase rotates the data key.
+- **Auto-lock** after inactivity (default 15 min) and after the app has been hidden for a while (default 5 min). **Lock now** is
+  also available. Locking drops the decrypted logins and zeroes the key in memory.
+- **Encrypted backup**: a JSON file encrypted with its own backup passphrase, with an authenticated header. Logins are never
+  exported in plain text, and they're **not** part of the normal JSON log backup.
+- The forms use `autocomplete="username"`, `"current-password"` and `"new-password"`, so password managers can fill and save them.
+  Password boxes are never pre-filled. A saved password only shows as "•••••• saved".
+- Credentials are never logged, and error messages are redacted. They're only sent to the service they belong to
+  (QRZ or HamQTH), over HTTPS.
+
+### The shared github.io origin, and why biometric unlock is off there
+Every GitHub Pages site of one account (HamLog, SatPass, Garmin Lens, …) runs on the **same origin**, `theriotcoder.github.io`.
+Browsers separate storage by origin, not by path. That means:
+- Any app on that origin *can* read the others' `localStorage`.
+- HamLog prefixes every key (`hamlog:vault:*`, `hamlog:lookup:*`) so its keys never collide with the other apps' keys. The
+  encrypted vault stays useless without your passphrase.
+- **Biometric (WebAuthn PRF) unlock is turned off on `*.github.io`.** A passkey is bound to the origin, and the wrapped key would
+  sit in storage that every app on that origin shares. Any of those apps could ask for the same passkey and unwrap it.
+- On a host of its own, such as Netlify or a custom domain, HamLog offers biometric unlock as an optional second way in, next to
+  the passphrase.
+
+### Sources (checked 2026-10-19)
+- QRZ XML spec v1.34: <https://www.qrz.com/docs/xml/current_spec.html>. Covers login and Key reuse, "Not found:", session errors,
+  "Connection refused", and "Non-subscriber access limits the data fields…".
+- Ham2K PoLo lookup docs, on the free-account field set and the ~100/day limit: <https://polo.ham2k.com/docs/polo-features/lookups/>
+- OpsLog QRZ XML field notes: <https://git.rouggy.com/rouggy/OpsLog/raw/branch/main/internal/lookup/QRZ-XML-FIELDS.md>
+- HamQTH XML API (session valid 60 min, fields): <https://www.hamqth.com/developers.php>
+- callook.info JSON API (US/FCC, no key): <https://callook.info/>
+- SatPass vault design: <https://github.com/TheRiotCoder/satpass> (1.3.5)
+- CORS: checked directly with `curl -H "Origin: https://theriotcoder.github.io"` (GET and OPTIONS) against all three hosts.
+
+Not verified: a lookup with a real free QRZ account (no test login was available). The free-field list above comes from the spec
+and the third-party docs, and the tests use a mocked QRZ response. The HamQTH field set wasn't checked with a live account either.
+
 ## Files
 ```
 index.html              app shell / UI
@@ -119,6 +209,11 @@ js/hamdata.js           bands, modes, RST defaults, validation, dupe logic (pure
 js/adif.js              ADIF 3.1.x export + import parser (pure, Node-testable)
 js/field.js             contest presets, dupes, stats, Cabrillo, POTA/SOTA refs, POTA file split, SOTA CSV (pure, Node-testable)
 js/ops.js               Field tab UI (contest / POTA / SOTA sessions)
+js/lookup.js            callsign lookup: QRZ/HamQTH/callook parsers, prefix table, client with cache (pure, Node-testable)
+js/lookupui.js          lookup chip + Settings → Callsign lookup / vault controls
+js/vaultcrypto.js       vault crypto, ported from SatPass 1.3.5 (pure, Node-testable)
+js/vault.js             encrypted login store (operation queue, auto-lock, backup), ported from SatPass
+js/bio.js               WebAuthn PRF unlock (off on *.github.io)
 js/db.js                IndexedDB wrapper
 js/app.js               UI controller
 sw.js                   service worker (offline cache; bump VERSION when you change files)
@@ -128,6 +223,9 @@ tests/adif.test.js      ADIF tests:  node tests/adif.test.js
 tests/field.test.js     contest / Cabrillo / POTA / SOTA tests: node tests/field.test.js
 tests/browser-smoke.js  headless Chrome end-to-end smoke test (optional)
 tests/field-smoke.js    headless Chrome: Field tab at 320-412px, 1.0 -> 1.1 migration, offline
+tests/lookup.test.js    lookup tests (mocked network): node tests/lookup.test.js
+tests/vault.test.js     vault tests (Node webcrypto): node tests/vault.test.js
+tests/lookup-smoke.js   headless Chrome: lookup with mocked QRZ, vault lock/unlock/backup, 320-412px
 _headers                Netlify security headers (CSP etc.)
 tools/make_icons.py     regenerates the icons (needs Python + Pillow)
 ```

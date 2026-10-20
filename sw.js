@@ -1,5 +1,5 @@
 /* HamLog service worker – offline app shell (cache-first, versioned). Bump VERSION on every release. */
-const VERSION = 'hamlog-v1.1.0';
+const VERSION = 'hamlog-v1.2.0';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,11 @@ const ASSETS = [
   './js/adif.js',
   './js/field.js',
   './js/ops.js',
+  './js/vaultcrypto.js',
+  './js/bio.js',
+  './js/vault.js',
+  './js/lookup.js',
+  './js/lookupui.js',
   './js/db.js',
   './js/app.js',
   './manifest.webmanifest',

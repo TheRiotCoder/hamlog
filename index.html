@@ -2,7 +2,7 @@
 <html lang="en" data-theme="auto">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self' https://api.pota.app https://api2.sota.org.uk; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self' https://api.pota.app https://api2.sota.org.uk https://xmldata.qrz.com https://www.hamqth.com https://callook.info; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HamLog – offline QSO logger</title>
@@ -60,6 +60,7 @@
                  placeholder="W1ABC" aria-describedby="callInfo">
         </label>
         <div id="callInfo" class="callinfo" aria-live="polite"></div>
+        <div class="chiprow"><span id="lookupChip" class="chip" role="status" aria-live="polite" hidden></span></div>
 
         <div class="grid g-dt">
           <label class="field">
@@ -362,6 +363,102 @@
         <p class="hint small">These are copied onto each new QSO when you log it.</p>
       </form>
 
+
+      <div class="card" id="lookupCard">
+        <h2>Callsign lookup</h2>
+        <label class="check"><input id="lk-enabled" type="checkbox"> <span>Look up name, city, country and grid when I type a call. Only empty fields get filled, and nothing you typed is overwritten.</span></label>
+        <fieldset class="lk-sources" id="lk-sources">
+          <legend class="lbl">Sources (in this order)</legend>
+          <label class="check"><input id="lk-qrz" type="checkbox"> <span>QRZ.com (needs your QRZ login; a <b>free</b> account returns name, city and country only)</span></label>
+          <label class="check"><input id="lk-hamqth" type="checkbox"> <span>HamQTH.com (free account; name, QTH, country, grid)</span></label>
+          <label class="check"><input id="lk-callook" type="checkbox"> <span>callook.info (US calls only, no login; FCC name, city, grid)</span></label>
+          <label class="check"><input id="lk-prefix" type="checkbox"> <span>Offline country from the call-sign prefix (approximate)</span></label>
+        </fieldset>
+        <p class="hint small">Each filled field shows where it came from. Results are cached on this device for 30 days. Offline, only the prefix country is used.</p>
+
+        <h3>Logins (stored only on this device)</h3>
+        <p id="vaultStatus" class="banner" aria-live="polite"></p>
+        <div id="vaultUnlockBox" hidden>
+          <form id="vaultUnlockForm" autocomplete="on" novalidate>
+            <input type="text" name="username" autocomplete="username" value="HamLog vault" class="vh" tabindex="-1" aria-hidden="true" readonly>
+            <label class="field"><span class="lbl">Vault passphrase</span>
+              <input id="vaultUnlockPass" type="password" autocomplete="current-password" spellcheck="false"></label>
+            <div class="actions"><button type="submit" class="btn primary">Unlock</button>
+              <button id="btnBioUnlock" type="button" class="btn" hidden>Unlock with biometrics</button></div>
+          </form>
+        </div>
+        <div id="credBox">
+          <form id="qrzCredForm" class="credform" autocomplete="on" novalidate action="#">
+            <div class="grid g2">
+              <label class="field"><span class="lbl">QRZ username (call sign)</span>
+                <input id="cr-qrzUser" name="username" type="text" autocomplete="username" autocapitalize="characters" spellcheck="false"></label>
+              <label class="field"><span class="lbl">QRZ password</span>
+                <input id="cr-qrzPass" name="password" type="password" autocomplete="current-password" spellcheck="false"></label>
+            </div>
+            <div class="actions"><button type="submit" class="btn">Save QRZ login</button></div>
+          </form>
+          <form id="hamqthCredForm" class="credform" autocomplete="on" novalidate action="#">
+            <div class="grid g2">
+              <label class="field"><span class="lbl">HamQTH username</span>
+                <input id="cr-hamqthUser" name="username" type="text" autocomplete="username" spellcheck="false"></label>
+              <label class="field"><span class="lbl">HamQTH password</span>
+                <input id="cr-hamqthPass" name="password" type="password" autocomplete="current-password" spellcheck="false"></label>
+            </div>
+            <div class="actions"><button type="submit" class="btn">Save HamQTH login</button></div>
+          </form>
+          <p class="hint small">If you leave a password box empty, the saved password stays as it is. A password manager can fill these forms.</p>
+
+          <details class="station-details" id="vaultDetails">
+            <summary>Encryption, auto-lock &amp; backup</summary>
+            <form id="vaultPassForm" autocomplete="on" novalidate>
+              <input type="text" name="username" autocomplete="username" value="HamLog vault" class="vh" tabindex="-1" aria-hidden="true" readonly>
+              <div class="grid g2">
+                <label class="field"><span class="lbl">New vault passphrase (10+ characters)</span>
+                  <input id="vaultNewPass" type="password" autocomplete="new-password" spellcheck="false"></label>
+                <label class="field"><span class="lbl">Repeat passphrase</span>
+                  <input id="vaultNewPass2" type="password" autocomplete="new-password" spellcheck="false"></label>
+              </div>
+              <div class="actions"><button type="submit" class="btn primary" id="btnSetPass">Encrypt logins with passphrase</button></div>
+            </form>
+            <p class="hint small">Without a passphrase, logins are kept for <b>this tab only</b> (session-only) and are gone when it closes. With one, they're encrypted (AES-GCM; key from PBKDF2-SHA256, 600,000 rounds) and saved on this device.</p>
+            <div class="grid g2">
+              <label class="field"><span class="lbl">Auto-lock after inactivity</span>
+                <select id="vaultIdle"><option value="0">Never</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">1 hour</option><option value="240">4 hours</option></select></label>
+              <label class="field"><span class="lbl">Auto-lock when app is hidden for</span>
+                <select id="vaultHidden"><option value="0">Never</option><option value="1">1 min</option><option value="5">5 min</option><option value="30">30 min</option></select></label>
+            </div>
+            <div class="actions">
+              <button id="btnLockNow" type="button" class="btn">Lock now</button>
+              <button id="btnRemovePass" type="button" class="btn">Remove passphrase (session-only)</button>
+              <button id="btnForgetCreds" type="button" class="btn danger">Forget all logins</button>
+            </div>
+            <div id="bioBox">
+              <div class="actions"><button id="btnBioEnroll" type="button" class="btn" hidden>Enable biometric unlock</button>
+                <button id="btnBioRemove" type="button" class="btn" hidden>Remove biometric unlock</button></div>
+              <p id="bioNote" class="hint small"></p>
+            </div>
+            <form id="vaultBackupForm" autocomplete="off" novalidate>
+              <label class="field"><span class="lbl">Backup passphrase (10+ characters)</span>
+                <input id="vaultBackupPass" type="password" autocomplete="new-password" spellcheck="false"></label>
+              <div class="actions">
+                <button id="btnVaultExport" type="button" class="btn">Save encrypted backup</button>
+                <label class="btn file-btn">Import encrypted backup…<input id="vaultImport" type="file" accept=".json,application/json" class="vh"></label>
+              </div>
+              <p class="hint small">The backup file is encrypted with this passphrase. Logins are never exported in plain text, and they're <b>not</b> in the normal JSON log backup.</p>
+            </form>
+          </details>
+        </div>
+        <p id="vaultMsg" class="hint small" aria-live="polite"></p>
+
+        <h3>Test a lookup</h3>
+        <div class="grid g-dt">
+          <label class="field"><span class="lbl">Call sign</span><input id="lk-testCall" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" placeholder="W1AW"></label>
+          <button id="lk-testBtn" type="button" class="btn">Look up</button>
+          <button id="lk-clearCache" type="button" class="btn">Clear cache</button>
+        </div>
+        <div id="lk-testOut" class="hint small" aria-live="polite"></div>
+      </div>
+
       <div class="card">
         <h2>Import ADIF</h2>
         <p class="hint">Merge QSOs from another logger (.adi / .adif), or a QRZ logbook export if you have a QRZ subscription. Exact repeats (same call, date, time to the minute, band, mode) are skipped.</p>
@@ -409,7 +506,12 @@
   <script src="js/adif.js"></script>
   <script src="js/db.js"></script>
   <script src="js/field.js"></script>
+  <script src="js/vaultcrypto.js"></script>
+  <script src="js/bio.js"></script>
+  <script src="js/vault.js"></script>
+  <script src="js/lookup.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/lookupui.js"></script>
   <script src="js/ops.js"></script>
 </body>
 </html>

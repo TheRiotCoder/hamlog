@@ -48,7 +48,7 @@ body {
 a { color: var(--accent); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
 h2 { font-size: 1.15rem; margin: 0 0 .6rem; }
-.vh { position: absolute !important; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
+.vh { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; border: 0 !important; min-width: 0 !important; margin: 0 !important; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ---- top bar ---- */
 .topbar {
@@ -232,3 +232,12 @@ main > .banner, body > .banner { max-width: 860px; margin: 12px auto 0; }
 .q-time { margin-left: auto; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
 #tab-ops .callinfo .pill { margin: 2px 4px 2px 0; }
 @media (max-width: 360px) { .tab-btn { font-size: .72rem; } .tab-btn .ti { font-size: 1.15rem; } }
+/* 1.2 lookup chip */
+.chiprow { min-height: 0; }
+.chip { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; font-size: .82rem; border: 1px solid var(--line, #888); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.lk-ok { border-color: var(--accent); }
+.chip.lk-muted, .chip.lk-busy { opacity: .75; }
+.lk-sources { border: 0; padding: 0; margin: 0; min-width: 0; }
+.lk-sources[disabled] { opacity: .5; }
+#vaultMsg.warn { color: var(--danger, #c33); }
+.credform { margin-bottom: 8px; }

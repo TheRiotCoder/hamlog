@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const H = window.HamData, A = window.Adif, DB = window.HamDB;
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
 
@@ -272,7 +272,7 @@
   function handlePrefill() {
     for (const k of Object.keys(state.prefilled)) {
       if (F[k].value === state.prefilled[k]) F[k].value = '';
-      F[k].classList.remove('prefilled');
+      F[k].classList.remove('prefilled'); F[k].title = '';
     }
     state.prefilled = {};
     if (!state.settings.autofill_prev || state.editingId) return;
@@ -283,6 +283,23 @@
     for (const k of PREFILL_FIELDS) {
       if (!F[k].value && prev[k]) { F[k].value = prev[k]; state.prefilled[k] = prev[k]; F[k].classList.add('prefilled'); }
     }
+  }
+
+  /** Callsign lookup result -> fill ONLY empty fields of the form (never what the user typed). Returns the keys filled. */
+  function fillBlanks(call, vals, srcLabels) {
+    if (state.editingId || H.normalizeCall(F.call.value) !== call) return [];
+    const done = [];
+    for (const k of ['name', 'qth', 'state', 'country', 'gridsquare']) {
+      const v = vals[k];
+      if (!v || F[k].value.trim() !== '') continue;
+      F[k].value = k === 'gridsquare' ? H.normalizeGrid(v) : v;
+      state.prefilled[k] = F[k].value;
+      F[k].classList.add('prefilled');
+      F[k].title = 'Filled from ' + (srcLabels[k] || 'lookup') + ' (edit to override)';
+      done.push(k);
+    }
+    if (done.length) updateCallInfo();
+    return done;
   }
 
   function updateCallInfo() {
@@ -813,6 +830,7 @@
       }
       handlePrefill();
       updateCallInfo();
+      if (window.HamLookupUI) window.HamLookupUI.onCall(state.editingId ? '' : H.normalizeCall(F.call.value));
     });
     F.call.addEventListener('blur', () => { F.call.value = H.normalizeCall(F.call.value); });
 
@@ -948,7 +966,7 @@
   const api = {
     state, uuid, esc, toast, plural, isTouch, shareOrDownload, downloadText, fileStamp, renderAll, startEdit, showTab,
     exportDefaults, requestPersist: p => requestPersist(p), version: APP_VERSION,
-    adifFor: list => buildAdif(list)
+    adifFor: list => buildAdif(list), fillBlanks
   };
 
   /* ---------------- init ---------------- */
@@ -971,6 +989,7 @@
     applyTheme();
     loadSettingsForm();
     resetForm(!isTouch());
+    if (window.HamLookupUI) { try { window.HamLookupUI.init(api); } catch (err) { console.warn('Lookup init failed'); } }
     if (window.HamOps) {
       try { await window.HamOps.init(api); } catch (err) { console.warn('Field ops init failed:', err); }
     }

@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.0 – 2026-10-19
+### Added
+- **Callsign lookup**: name, QTH, state, country and grid. Only empty fields are filled; typed values are never overwritten.
+  - Sources: QRZ.com XML (your login; a free account gets name, city and country), HamQTH (free login), callook.info (US, no login),
+    and an offline prefix-to-country table. Each source can be switched on or off, and every filled field is labelled with its source.
+  - Debounced. Results are cached on the device for 30 days. Failures are silent and offline-safe, with a status chip under the call field.
+  - QRZ session key cached for the tab and reused. Re-login when there's no `<Key>`. Retries stop after a rejected login, and
+    `Connection refused` pauses QRZ for 24 h.
+  - Direct browser calls. All three services allow CORS from github.io, so **no proxy** is needed.
+- **Encrypted login vault**, ported from SatPass 1.3.5: AES-GCM data key wrapped by a PBKDF2-SHA256 600k key, operation queue,
+  auto-lock (idle and hidden), session-only mode without a passphrase, and an encrypted backup with an AAD-bound header.
+  Forms work with password managers. Biometric (WebAuthn PRF) unlock is offered only off `*.github.io`.
+  Storage keys are namespaced (`hamlog:vault:*`, `hamlog:lookup:*`).
+- Tests: `tests/lookup.test.js` (14), `tests/vault.test.js` (11) and `tests/lookup-smoke.js` (35, headless Chrome with mocked QRZ, 320–412 px).
+
+### Changed
+- CSP `connect-src` adds `xmldata.qrz.com`, `www.hamqth.com` and `callook.info`.
+- Service worker cache is now `hamlog-v1.2.0`.
+- The older smoke tests block the lookup hosts so they stay deterministic.
+
 ## 1.1.0 – 2026-10-19
 ### Added
 - **Field tab** for contest logging and POTA/SOTA.
