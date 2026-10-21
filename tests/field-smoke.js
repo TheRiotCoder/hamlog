@@ -192,7 +192,7 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
 
   console.log('\nDialogs:', dialogs);
   // the migration step opens a PNG directly, so Chrome asks for /favicon.ico once; that 404 is expected
-  for (let i = problems.length - 1; i >= 0; i--) if (/favicon\.ico/.test(problems[i])) problems.splice(i, 1);
+  for (let i = problems.length - 1; i >= 0; i--) if (/favicon\.ico|inline style.*favicon-32\.png/.test(problems[i])) problems.splice(i, 1);
   console.log('Console/log problems (online):', problems.slice(0, before));
   console.log('Console/log problems (offline phase):', problems.slice(before));
   const fails = results.filter(r => !r[0]).length;

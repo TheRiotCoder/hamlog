@@ -3,7 +3,7 @@
 ## 1.3.0 – 2026-10-21
 ### Added
 - **Own origin on Cloudflare Pages: <https://hamlog-azm.pages.dev/>** (project `hamlog`, direct upload).
-  - `_headers` adds the CSP plus `frame-ancestors 'none'`, X-Frame-Options, COOP, HSTS and a Permissions-Policy, sets no-cache on
+  - `_headers` adds the CSP plus `frame-ancestors 'none'`, X-Frame-Options, COOP, HSTS and a Permissions-Policy (no `bluetooth` entry: Chrome warns that it does not recognize it), sets no-cache on
     the shell, and removes Pages' default ACAO `*`.
   - `tools/build-site.sh` builds the upload, with a real 404 page.
   - `wrangler.toml` names the project.

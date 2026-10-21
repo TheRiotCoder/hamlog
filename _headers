@@ -7,7 +7,7 @@
   X-Frame-Options: DENY
   Cross-Origin-Opener-Policy: same-origin
   Strict-Transport-Security: max-age=31536000
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), publickey-credentials-get=(self), publickey-credentials-create=(self)
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), publickey-credentials-get=(self), publickey-credentials-create=(self)
   ! Access-Control-Allow-Origin
 
 # (Cloudflare Pages adds 'Access-Control-Allow-Origin: *' to every file by default; the line above removes it)
