@@ -16,7 +16,7 @@
     cfg: () => cfg,
     store: { get: k => js(localStorage, k, null), set: (k, v) => put(localStorage, k, v) },
     session: { get: k => js(sessionStorage, k, null), set: (k, v) => put(sessionStorage, k, v) },
-    agent: 'HamLog-1.2.1', redact: t => V.redact(t)
+    agent: 'HamLog-1.3.0', redact: t => V.redact(t)
   });
   const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const online = () => navigator.onLine !== false;

@@ -77,18 +77,23 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   const submit = sel => evalJs(`document.querySelector(${JSON.stringify(sel)}).requestSubmit()`);
   const allStore = () => evalJs(`JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))`);
   const PW = 'qrz-Secret-Pw-42', VPASS = 'my vault passphrase 1';
-  const live = !!process.env.HAMLOG_URL;
+  const live = !!process.env.HAMLOG_URL, ghio = /github\.io/.test(APP);
+  // WebAuthn virtual platform authenticator with PRF (used only where biometric unlock is offered)
+  await send('WebAuthn.enable', { enableUI: false });
+  const auth = await send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, hasPrf: true, automaticPresenceSimulation: true } });
 
   let ld = waitEvent('Page.loadEventFired'); await send('Page.navigate', { url: APP + '#log' }); await ld; await sleep(1200);
   await evalJs(`localStorage.clear(); sessionStorage.clear(); true`);
   ld = waitEvent('Page.loadEventFired'); await send('Page.reload', { ignoreCache: true }); await ld; await sleep(1200);
-  check('version 1.2.1', await evalJs(`fetch('sw.js',{cache:'no-store'}).then(r=>r.text()).then(t=>t.includes('hamlog-v1.2.1'))`));
+  check('version 1.3.0', await evalJs(`fetch('sw.js',{cache:'no-store'}).then(r=>r.text()).then(t=>t.includes('hamlog-v1.3.0'))`));
   check('modules loaded', await evalJs(`!!(window.HamVault && window.HamLookup && window.HamLookupUI && window.HamVaultCrypto)`));
   check('lookup card present, enabled by default', await evalJs(`!!document.querySelector('#lookupCard') && document.querySelector('#lk-enabled').checked`));
   const host = await evalJs('location.hostname');
-  check('biometric hidden on ' + host + (live ? ' (github.io: shared-origin note)' : ''), live
-    ? await evalJs(`document.querySelector('#btnBioEnroll').hidden && /shares that one origin/.test(document.querySelector('#bioNote').textContent) && HamVault.bioAllowed()===false`)
-    : await evalJs(`HamVaultCrypto.sharedOrigin('theriotcoder.github.io') === true`));
+  if (ghio) check('biometric NOT offered on ' + host + ' (shared-origin note)', await evalJs(`document.querySelector('#btnBioEnroll').hidden && /shares that one origin/.test(document.querySelector('#bioNote').textContent) && HamVault.bioAllowed()===false`));
+  else check('biometric allowed on ' + host + ' (own origin); github.io still refused', await evalJs(`HamVault.bioAllowed()===true && HamVaultCrypto.sharedOrigin('theriotcoder.github.io')===true`));
+  check(ghio ? 'moved notice shown on the github.io mirror, links to pages.dev' : 'no moved notice on ' + host, ghio
+    ? await evalJs(`!document.querySelector('#movedBar').hidden && /hamlog-azm\.pages\.dev/.test(document.querySelector('#movedLink').href) && /encrypted login backup/.test(document.querySelector('#movedBar').textContent)`)
+    : await evalJs(`document.querySelector('#movedBar').hidden`));
   check('password-manager-friendly forms', await evalJs(`document.querySelector('#cr-qrzUser').autocomplete==='username' && document.querySelector('#cr-qrzPass').autocomplete==='current-password' && document.querySelector('#cr-qrzPass').type==='password' && document.querySelector('#vaultNewPass').autocomplete==='new-password'`));
 
   // no login: callook (US) + prefix
@@ -134,6 +139,16 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   check('wrong passphrase rejected', await evalJs(`HamVault.isLocked()`) && (await evalJs(`document.querySelector('#vaultMsg').textContent`)).length > 0);
   await setv('#vaultUnlockPass', VPASS); await submit('#vaultUnlockForm'); await sleep(2500);
   check('unlock restores login', await evalJs(`!HamVault.isLocked() && HamVault.getCreds().qrzUser==='N0CALL'`) && (await val('#cr-qrzUser')) === 'N0CALL' && (await val('#cr-qrzPass')) === '');
+  if (!ghio) {   // biometric (WebAuthn PRF) enrol -> lock -> unlock with the virtual authenticator
+    await evalJs(`document.querySelector('#vaultDetails').open=true`); await sleep(1500);
+    check('biometric option offered (Enable biometric unlock visible)', await evalJs(`!document.querySelector('#btnBioEnroll').hidden`), await evalJs(`document.querySelector('#bioNote').textContent`));
+    await click('#btnBioEnroll'); await sleep(2500);
+    check('biometric enrolled (PRF record stored, no plaintext)', await evalJs(`!!HamVault.bioInfo() && !!localStorage.getItem('hamlog:vault:bio')`) && !(await allStore()).includes(PW), await evalJs(`document.querySelector('#vaultMsg').textContent`));
+    await click('#btnLockNow'); await sleep(300);
+    check('locked; Unlock with biometrics shown', await evalJs(`HamVault.isLocked() && !document.querySelector('#btnBioUnlock').hidden`));
+    await click('#btnBioUnlock'); await sleep(2500);
+    check('biometric unlock restores login', await evalJs(`!HamVault.isLocked() && HamVault.getCreds().qrzPass===${JSON.stringify(PW)}`), await evalJs(`document.querySelector('#vaultMsg').textContent`));
+  }
   // 1.2.1: session keys cleared by every way the logins go away
   const KEYQ = `sessionStorage.getItem('hamlog:lookup:qrzkey')`;
   const primeKey = async () => { await evalJs(`HamLookupUI._client.lookup('W1AW',{force:true})`); return evalJs(`${KEYQ}==='"MOCKKEY"'`); };
@@ -190,6 +205,12 @@ function check(name, ok, info) { results.push([ok, name, info]); console.log((ok
   }
   check('no real network to lookup services (all intercepted)', hits.every(u => /qrz|hamqth|callook/.test(u)));
 
+  // navigation through the service worker, incl. /index.html (Cloudflare Pages redirects it to /; 1.3.0 never serves a redirected response)
+  for (const u of [APP, APP + 'index.html', APP + '#log']) {
+    ld = waitEvent('Page.loadEventFired'); await send('Page.navigate', { url: u }); await ld; await sleep(800);
+    check('SW navigation ok: ' + u.replace(APP, '/'), await evalJs(`!!navigator.serviceWorker.controller && !!document.querySelector('#f-call') && !!window.HamLookupUI`));
+  }
+  check('SW cache holds no redirected response', await evalJs(`caches.keys().then(ks=>Promise.all(ks.map(k=>caches.open(k).then(c=>c.keys().then(rs=>Promise.all(rs.map(r=>c.match(r).then(x=>x.redirected)))))))).then(a=>a.flat().every(x=>!x))`));
   for (let i = problems.length - 1; i >= 0; i--) if (/favicon\.ico|ERR_INTERNET_DISCONNECTED|net::ERR/.test(problems[i])) problems.splice(i, 1);
   console.log('Console/log problems:', problems);
   const fails = results.filter(r => !r[0]).length;

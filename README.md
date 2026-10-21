@@ -1,6 +1,15 @@
 # HamLog – offline ham radio QSO logger (PWA)
 
-**Live app: [HamLog on Netlify](https://unique-hummingbird-2241c8.netlify.app/#log)** (backup: [GitHub Pages](https://theriotcoder.github.io/hamlog/))
+**▶ Open the app: <https://hamlog-azm.pages.dev/>** (Cloudflare Pages, HamLog's own origin, so biometric unlock works there).
+
+> **Moved (1.3.0).** The GitHub Pages copy, <https://theriotcoder.github.io/hamlog/>, is now a **mirror**. It keeps working, also offline,
+> and shows a notice, but biometric unlock is not offered there. **Your data does not move by itself**, because browsers keep storage
+> per address. On the old copy:
+> 1. **Settings → Callsign lookup → Save encrypted backup** (logins).
+> 2. **Backup → JSON backup** (QSOs, sessions, settings).
+>
+> Then import both on the new address. The older Netlify copy (<https://unique-hummingbird-2241c8.netlify.app/>) is still on 1.0.0
+> and isn't updated.
 
 Install it:
 - **iPhone/iPad:** open the link in Safari, tap Share, then **Add to Home Screen**.
@@ -206,8 +215,14 @@ Browsers separate storage by origin, not by path. That means:
   encrypted vault stays useless without your passphrase.
 - **Biometric (WebAuthn PRF) unlock is turned off on `*.github.io`.** A passkey is bound to the origin, and the wrapped key would
   sit in storage that every app on that origin shares. Any of those apps could ask for the same passkey and unwrap it.
-- On a host of its own, such as Netlify or a custom domain, HamLog offers biometric unlock as an optional second way in, next to
-  the passphrase.
+- **On `https://hamlog-azm.pages.dev` biometric unlock is offered (1.3.0).**
+  - `pages.dev` is on the Public Suffix List, so every Pages project is a separate origin, and HamLog is the only app on this one.
+  - Under Settings → Callsign lookup → Encryption, set a passphrase, then **Enable biometric unlock**. It's an optional second way in
+    (Face ID, fingerprint, Windows Hello) next to the passphrase.
+  - The WebAuthn PRF output (through HKDF) wraps the random data key, padded and AAD-bound. The code is ported from SatPass.
+  - It needs a browser and device that support the PRF extension; otherwise the app says why it isn't available.
+  - The record is deleted when you change or remove the passphrase.
+  - The passkey belongs to `hamlog-azm.pages.dev` and doesn't work on any other copy.
 
 ### Sources (checked 2026-10-19)
 - QRZ XML spec v1.34: <https://www.qrz.com/docs/xml/current_spec.html>. Covers login and Key reuse, "Not found:", session errors,
@@ -246,7 +261,9 @@ tests/browser-smoke.js  headless Chrome end-to-end smoke test (optional)
 tests/field-smoke.js    headless Chrome: Field tab at 320-412px, 1.0 -> 1.1 migration, offline
 tests/lookup.test.js    lookup tests (mocked network): node tests/lookup.test.js
 tests/vault.test.js     vault tests (Node webcrypto): node tests/vault.test.js
-tests/lookup-smoke.js   headless Chrome: lookup with mocked QRZ, vault lock/unlock/backup, 320-412px
+tests/lookup-smoke.js   headless Chrome: lookup with mocked QRZ, vault lock/unlock/backup, biometric (virtual PRF authenticator), SW navigation, 320-412px
+tools/build-site.sh     builds dist/ for Cloudflare Pages
+wrangler.toml           Cloudflare Pages project "hamlog"
 _headers                Netlify security headers (CSP etc.)
 tools/make_icons.py     regenerates the icons (needs Python + Pillow)
 ```
@@ -282,6 +299,34 @@ All paths are relative, so serving from a sub-folder works. `.nojekyll` is inclu
 
 **After you change any file**, bump `VERSION` in `sw.js` (e.g. `hamlog-v1.0.1`) so installed copies pick
 up the update. The app then shows a "new version, Reload" banner.
+
+## Deploying to Cloudflare Pages (primary host)
+HamLog is static files, served from the Cloudflare Pages project **`hamlog`** (`https://hamlog-azm.pages.dev`). Cloudflare
+assigned the `-azm` suffix. It's a direct upload, with no Git integration and no Functions.
+- `_headers` adds the following:
+  - The CSP, kept identical to the `<meta>` CSP, plus `frame-ancestors 'none'`.
+  - nosniff, no-referrer, `X-Frame-Options: DENY`, COOP, HSTS, and a Permissions-Policy that allows only `publickey-credentials-*` for itself.
+  - `no-cache` on `sw.js`, `/`, `index.html` and the manifest.
+  - Removal of Pages' default `Access-Control-Allow-Origin: *`.
+- `tools/build-site.sh` copies exactly the app files, `_headers` and a real `404.html` into `dist/`.
+- `wrangler.toml` names the project.
+
+```sh
+sh tools/build-site.sh
+export CLOUDFLARE_ACCOUNT_ID=<account id> CLOUDFLARE_API_TOKEN=<token with Cloudflare Pages: Edit>   # never commit them
+npx wrangler pages deploy dist --project-name hamlog --branch main
+```
+Use wrangler 4 under Node 22. Run it from a folder with a writable `node_modules`.
+
+To check a deploy:
+- `curl -sI https://hamlog-azm.pages.dev/ | grep -i content-security` shows the CSP.
+- `https://hamlog-azm.pages.dev/sw.js` shows the new `hamlog-vX.Y.Z`.
+- `HAMLOG_URL=https://hamlog-azm.pages.dev/ node --experimental-websocket tests/lookup-smoke.js` runs the smoke test against it.
+
+Cloudflare Pages redirects `/index.html` to `/`. Since 1.3.0 the service worker rebuilds any redirected response as a plain one
+before caching or serving it. A redirected response served to a navigation makes Chrome show an error page (SatPass hit this in 1.3.4).
+
+The GitHub Pages copy is still built from `main` as a mirror.
 
 ## Install on your devices
 - **Android (Chrome/Edge):** open the https URL, then tap **Install** in the app header or use the browser menu → *Install app / Add to Home screen*.

@@ -7,7 +7,7 @@
    apps (e.g. <user>.github.io, where every project site is one origin) a sibling app can read the record and ask the same passkey for the PRF output after
    one biometric tap, so biometric unlock is NOT offered there (SatSources.sharedOrigin). It is offered on localhost and on hosts that are NOT detectably shared;
    the page cannot know what else lives on its host, so a GitHub Pages custom domain (which serves every project repo of the account from one origin) must not be used
-   for this - use a host dedicated to SatPass (e.g. its own Netlify site). */
+   for this - use a host dedicated to HamLog (its own Cloudflare Pages project). */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory(); else root.HamBio = factory();
 })(typeof self !== "undefined" ? self : this, function () {

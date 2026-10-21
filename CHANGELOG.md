@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.0 – 2026-10-21
+### Added
+- **Own origin on Cloudflare Pages: <https://hamlog-azm.pages.dev/>** (project `hamlog`, direct upload).
+  - `_headers` adds the CSP plus `frame-ancestors 'none'`, X-Frame-Options, COOP, HSTS and a Permissions-Policy, sets no-cache on
+    the shell, and removes Pages' default ACAO `*`.
+  - `tools/build-site.sh` builds the upload, with a real 404 page.
+  - `wrangler.toml` names the project.
+- **Biometric (WebAuthn PRF) unlock is offered on pages.dev** (the SatPass `biometric.js` port), and is still refused on `*.github.io`.
+- The GitHub Pages copy is now a **mirror**. It shows a "moved" notice linking to the new address and advises saving a JSON backup
+  and an encrypted login backup first, since storage doesn't carry across origins. The notice can be hidden.
+### Fixed
+- The service worker never caches or serves a redirected response (Cloudflare Pages redirects `/index.html` → `/`), which is
+  SatPass's 1.3.4 bug, ported fix. Precache is now per-file and checked.
+### Changed
+- Version 1.3.0, SW cache `hamlog-v1.3.0`. README: new primary URL, mirror note, Cloudflare deploy section, biometric section.
+- `tests/lookup-smoke.js` (57 checks): biometric enrol, lock and unlock with a CDP virtual PRF authenticator where allowed; the moved
+  notice on github.io only; SW navigation to `/`, `/index.html` and `/#log`; no redirected response in the cache.
+
 ## 1.2.1 – 2026-10-19
 Security review follow-ups (three Low items, nothing blocking).
 ### Changed

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const H = window.HamData, A = window.Adif, DB = window.HamDB;
-  const APP_VERSION = '1.2.1';
+  const APP_VERSION = '1.3.0';
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
 
@@ -283,6 +283,17 @@
     for (const k of PREFILL_FIELDS) {
       if (!F[k].value && prev[k]) { F[k].value = prev[k]; state.prefilled[k] = prev[k]; F[k].classList.add('prefilled'); }
     }
+  }
+
+  /** 1.3.0: the GitHub Pages copy is a mirror; the primary home is the app's own origin on Cloudflare Pages. */
+  const HOME_URL = 'https://hamlog-azm.pages.dev/';
+  function movedBar() {
+    const bar = $('#movedBar');
+    if (!bar || !/(^|\.)github\.io$/i.test(location.hostname)) return;
+    try { if (localStorage.getItem('hamlog:movedHide') === '1') return; } catch (e) { /* storage blocked: show it */ }
+    $('#movedLink').href = HOME_URL + '#log';
+    bar.hidden = false;
+    $('#movedHide').addEventListener('click', () => { try { localStorage.setItem('hamlog:movedHide', '1'); } catch (e) { /* */ } bar.hidden = true; });
   }
 
   /** Callsign lookup result -> fill ONLY empty fields of the form (never what the user typed). Returns the keys filled. */
@@ -989,6 +1000,7 @@
     applyTheme();
     loadSettingsForm();
     resetForm(!isTouch());
+    movedBar();
     if (window.HamLookupUI) { try { window.HamLookupUI.init(api); } catch (err) { console.warn('Lookup init failed'); } }
     if (window.HamOps) {
       try { await window.HamOps.init(api); } catch (err) { console.warn('Field ops init failed:', err); }

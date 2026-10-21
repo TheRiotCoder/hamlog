@@ -241,3 +241,6 @@ main > .banner, body > .banner { max-width: 860px; margin: 12px auto 0; }
 .lk-sources[disabled] { opacity: .5; }
 #vaultMsg.warn { color: var(--danger, #c33); }
 .credform { margin-bottom: 8px; }
+/* 1.3 moved notice on the GitHub Pages mirror */
+.moved { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px; }
+.moved a { font-weight: 700; text-decoration: underline; color: inherit; }
